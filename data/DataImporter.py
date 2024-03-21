@@ -1,11 +1,7 @@
-from pymongo import MongoClient
-
-
 class DataImporter:
     def __init__(self, data_dir, db_name):
         self.data_dir = data_dir
         self.db_name = db_name
-        self.db = MongoClient()[self.db_name]
 
     def save_raw(self, data):
         self.db["raw_data"].insert_one(data)

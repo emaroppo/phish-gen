@@ -3,6 +3,7 @@ import os
 import email
 import re
 from data.DataImporter import DataImporter
+from data.enron.EnronThread import EnronThread
 
 
 class EnronDataImporter(DataImporter):
