@@ -5,8 +5,8 @@ class EmailMessage:
     @classmethod
     def from_text(
         cls,
-        text,
-        is_main=False,
+        text: str,
+        is_main: bool = False,
         response: ObjectId = None,
         forwarded_by: ObjectId = None,
     ):
@@ -25,17 +25,19 @@ class EmailMessage:
 
     def __init__(
         self,
-        _id=None,
-        is_main=False,
-        headers=dict(),
-        body="",
-        response=None,
+        _id: ObjectId = None,
+        is_main: bool = False,
+        headers: dict = dict(),
+        body: str = "",
+        response: ObjectId = None,
+        forwarded_by: ObjectId = None,
     ):
         self._id = _id
         self.is_main = is_main
         self.headers = headers
         self.body = body
         self.response = response
+        self.forwarded_by = forwarded_by
 
     def to_db_entry(self):
         db_entry = {
@@ -46,10 +48,10 @@ class EmailMessage:
         }
         if self.response is not None:
             db_entry["response"] = self.response
+        if self.forwarded_by is not None:
+            db_entry["forwarded_by"] = self.forwarded_by
+
         return db_entry
 
     def __str__(self):
-        return f"EmailMessage({self.subject}, {self.body}, {self.to})"
-
-    def send(self):
-        print(f"Sending email to {self.to}")
+        return f"EmailMessage({self._id}, {self.body})"
