@@ -1,6 +1,6 @@
-from data.QueryManager import query_manager
+from common_classes.QueryManager import query_manager
 from bson import ObjectId
-from data.EmailMessage import EmailMessage
+from common_classes.EmailMessage import EmailMessage
 from typing import List
 
 

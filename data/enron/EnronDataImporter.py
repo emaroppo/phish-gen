@@ -1,6 +1,6 @@
 from tqdm import tqdm
 import os
-from data.DataImporter import DataImporter, query_manager
+from common_classes.DataImporter import DataImporter, query_manager
 from data.enron.EnronThread import EnronThread
 
 
@@ -30,7 +30,7 @@ class EnronDataImporter(DataImporter):
                 match_dict
             )
 
-        query_manager.connection[self.db_name]["raw_data_multipart2"].insert_many(
+        query_manager.connection[self.db_name]["raw_data_multipart"].insert_many(
             multithread_docs
         )
 
@@ -41,13 +41,13 @@ class EnronDataImporter(DataImporter):
                 collection="raw_data_multipart", n=sample
             )
         elif sample is None:
-            multithread_docs = query_manager.connection["enron_emails2"][
-                "raw_data_multipart2"
+            multithread_docs = query_manager.connection["enron_emails"][
+                "raw_data_multipart"
             ].find()
 
         for i in tqdm(multithread_docs):
             thread = EnronThread.from_db(
-                _id=i["_id"], db_name=self.db_name, collection="raw_data_multipart2"
+                _id=i["_id"], db_name=self.db_name, collection="raw_data_multipart"
             )
             thread.clean()
             thread.save()
