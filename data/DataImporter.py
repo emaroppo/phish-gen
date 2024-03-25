@@ -1,4 +1,4 @@
-from QueryManager import query_manager
+from data.QueryManager import query_manager
 
 
 class DataImporter:

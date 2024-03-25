@@ -21,7 +21,7 @@ class EnronDataImporter(DataImporter):
 
     def isolate_multiparts(self, sample=None):
         match_dict = {
-            "email-threads": {"$regex": "(-Original Message-)|(- Forwarded by)"}
+            "messages.body": {"$regex": "(-Original Message-)|(- Forwarded by)"}
         }
         if type(sample) == int:
             multithread_docs = self.retrieve_samples(match_dict, n=sample)
@@ -30,7 +30,7 @@ class EnronDataImporter(DataImporter):
                 match_dict
             )
 
-        query_manager.connection[self.db_name]["raw_data_multipart"].insert_many(
+        query_manager.connection[self.db_name]["raw_data_multipart2"].insert_many(
             multithread_docs
         )
 
@@ -41,9 +41,13 @@ class EnronDataImporter(DataImporter):
                 collection="raw_data_multipart", n=sample
             )
         elif sample is None:
-            multithread_docs = self.db["raw_data_multipart"].find()
+            multithread_docs = query_manager.connection["enron_emails2"][
+                "raw_data_multipart2"
+            ].find()
 
-        for i in multithread_docs:
-            thread = EnronThread.from_db(i["_id"], self.db_name, "raw_data_multipart")
+        for i in tqdm(multithread_docs):
+            thread = EnronThread.from_db(
+                _id=i["_id"], db_name=self.db_name, collection="raw_data_multipart2"
+            )
             thread.clean()
             thread.save()

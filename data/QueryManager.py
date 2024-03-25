@@ -1,4 +1,5 @@
 from pymongo import MongoClient
+from bson import ObjectId
 
 
 class QueryManager:
@@ -7,8 +8,13 @@ class QueryManager:
         self.connection = MongoClient()
 
     def save_entry(self, entry, db_name, collection):
-        entry_id = self.connection[db_name][collection].insert_one(entry)
-        return entry_id
+        if "_id" not in entry:
+            entry["_id"] = ObjectId()
+        self.connection[db_name][collection].update_one(
+            {"_id": entry["_id"]},
+            {"$set": entry},
+            upsert=True,
+        )
 
     def retrieve_entry(self, query, db_name, collection):
         return self.connection[db_name][collection].find_one(query)

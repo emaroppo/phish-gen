@@ -9,9 +9,12 @@ class EmailThread:
     @classmethod
     def from_db(cls, _id, db_name, collection):
         # retrieve the thread from the database
+
         thread_doc = query_manager.retrieve_entry(
             {"_id": _id}, db_name=db_name, collection=collection
         )
+        thread_doc["db_name"] = db_name
+        thread_doc["collection"] = collection
         return cls(**thread_doc)
 
     @classmethod
@@ -35,6 +38,8 @@ class EmailThread:
     def __init__(self, db_name, collection, _id=None, messages=[], file_path=None):
         self._id = _id
         self.messages = messages
+        if self.messages:
+            self.messages = [EmailMessage(**i) for i in self.messages]
         self.file_path = file_path
         self.db_name = db_name
         self.collection = collection

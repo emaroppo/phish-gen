@@ -1,6 +1,4 @@
 from data.enron.EnronDataImporter import EnronDataImporter
 
-enron = EnronDataImporter("data/enron/maildir", "enron_emails")
-enron.load_raw_data()
-enron.isolate_multiparts()
+enron = EnronDataImporter("data/enron/dataset/maildir", "enron_emails2")
 enron.clean_multiparts()
