@@ -1,10 +1,33 @@
 from common_classes.QueryManager import query_manager
 from bson import ObjectId
 from common_classes.EmailMessage import EmailMessage
-from typing import List
+from typing import List, Optional
+from pydantic import BaseModel, model_validator
 
 
-class EmailThread:
+class EmailThread(BaseModel):
+    id: Optional[str]
+    messages: List[EmailMessage]
+    file_path: str
+    db_name: str
+    collection: str
+
+    
+
+    @classmethod
+    def deserialize(cls, data):
+        object_id_fields = ["_id"]
+        for field in object_id_fields:
+            if field in data:
+                data[field] = str(data[field])
+        
+        if "_id" in data:
+            data["id"] = data.pop("_id")
+        
+        messages = [EmailMessage.deserialize(i) for i in data["messages"]]
+        data["messages"] = messages
+
+        return cls(**data)
 
     @classmethod
     def from_db(cls, _id, db_name, collection):
@@ -15,34 +38,41 @@ class EmailThread:
         )
         thread_doc["db_name"] = db_name
         thread_doc["collection"] = collection
+        thread_doc["id"] = str(thread_doc.pop("_id"))
+        thread_doc["id"] = str(thread_doc["id"])
+        for i in thread_doc["messages"]:
+            i["id"] = str(i["_id"])
+            i["id"] = str(i["id"])
+            del i["_id"]
+
         return cls(**thread_doc)
 
     @classmethod
     def from_text(cls, text, file_path, db_name, collection):
         # assuming text holds a string containing the email thread
         thread_doc = dict()
-        thread_doc["_id"] = ObjectId()
+        thread_doc["_id"] = str(ObjectId())
         thread_doc["file_path"] = file_path
         thread_doc["messages"] = list()
 
         message = dict()
-        message["_id"] = ObjectId()
+        message["_id"] = str(ObjectId())
         message["body"] = text
         message["is_main"] = True
         thread_doc["messages"].append(message)
 
         query_manager.save_entry(thread_doc, db_name, collection)
+        #rename _id to id and convert to string for each message
+        for i in thread_doc["messages"]:
+            i["id"] = str(i.pop("_id"))
+        
+        messages = [EmailMessage(**i) for i in thread_doc["messages"]]
+        thread_doc["messages"] = messages
+        thread_doc["db_name"] = db_name
+        thread_doc["collection"] = collection
+        thread_doc["id"] = str(thread_doc.pop("_id"))
 
         return cls(**thread_doc)
-
-    def __init__(self, db_name, collection, _id=None, messages=[], file_path=None):
-        self._id = _id
-        self.messages = messages
-        if self.messages:
-            self.messages = [EmailMessage(**i) for i in self.messages]
-        self.file_path = file_path
-        self.db_name = db_name
-        self.collection = collection
 
     def split_original_messages(
         self, original_message: EmailMessage, split_items: List[str]
@@ -50,17 +80,17 @@ class EmailThread:
         message_thread = list()
         original_message.body = split_items.pop(0)
         message_thread.append(original_message)
-        previous_id = original_message._id
+        previous_id = original_message.id
 
         for i in split_items:
             message = EmailMessage.from_text(i, response=previous_id)
             message_thread.append(message)
-            previous_id = message._id
+            previous_id = message.id
 
         # save the split thread
         message_thread_entries = [i.to_db_entry() for i in message_thread]
         query_manager.connection[self.db_name][self.collection].update_one(
-            {"_id": self._id}, {"$set": {"messages": message_thread_entries}}
+            {"_id": self.id}, {"$set": {"messages": message_thread_entries}}
         )
         self.messages = message_thread
 
@@ -73,13 +103,13 @@ class EmailThread:
         original_message.body = split_items.pop(0)
         # all threads seems to have at most one forwarded message, will update the code to handle multiple forwarded messages if needed
         new_message = EmailMessage.from_text(
-            split_items.pop(-1), forwarded_by=original_message._id
+            split_items.pop(-1), forwarded_by=original_message.id
         )
         # update the original message body in the db
         query_manager.connection[self.db_name][self.collection].update_one(
-            {"_id": thread_id, "messages._id": original_message._id},
+            {"_id": thread_id, "messages._id": original_message.id},
             {"$set": {"messages.$[elem].body": original_message.body}},
-            array_filters=[{"elem._id": original_message._id}],
+            array_filters=[{"elem._id": original_message.id}],
         )
 
         # save the forwarded message
@@ -91,14 +121,14 @@ class EmailThread:
 
     def to_db_entry(self):
         db_entry = {
-            "_id": self._id,
+            "_id": ObjectId(self.id),
             "file_path": self.file_path,
             "messages": [i.to_db_entry() for i in self.messages],
         }
         return db_entry
 
     def __str__(self):
-        return f"EmailThread({self._id}, {self.file_path})"
+        return f"EmailThread({self.id}, {self.file_path})"
 
     def save(self):
         query_manager.save_entry(self.to_db_entry(), self.db_name, self.collection)

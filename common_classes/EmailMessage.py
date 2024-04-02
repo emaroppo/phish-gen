@@ -1,7 +1,29 @@
 from bson import ObjectId
+from pydantic import BaseModel
+from typing import Optional, Dict, Any
 
 
-class EmailMessage:
+class EmailMessage(BaseModel):
+    id: str
+    is_main: bool
+    headers: Optional[Dict[str, str]] = None
+    body: str
+    response: Optional[str] = None
+    forwarded_by: Optional[str] = None
+
+    @classmethod
+    def deserialize(cls, data: Dict[str, Any]):
+        object_id_fields = ["_id", "response", "forwarded_by"]
+        for field in object_id_fields:
+            if field in data:
+                data[field] = str(data[field])
+
+        #update _id key to id
+        if "_id" in data:
+            data["id"] = data.pop("_id")
+
+        return cls(**data)
+
     @classmethod
     def from_text(
         cls,
@@ -12,7 +34,7 @@ class EmailMessage:
     ):
         # assuming text holds a string containing the email thread
         message_doc = dict()
-        message_doc["_id"] = ObjectId()
+        message_doc["id"] = str(ObjectId())
         message_doc["body"] = text
         message_doc["is_main"] = is_main
 
@@ -23,25 +45,9 @@ class EmailMessage:
 
         return cls(**message_doc)
 
-    def __init__(
-        self,
-        _id: ObjectId = None,
-        is_main: bool = False,
-        headers: dict = dict(),
-        body: str = "",
-        response: ObjectId = None,
-        forwarded_by: ObjectId = None,
-    ):
-        self._id = _id
-        self.is_main = is_main
-        self.headers = headers
-        self.body = body
-        self.response = response
-        self.forwarded_by = forwarded_by
-
     def to_db_entry(self):
         db_entry = {
-            "_id": self._id,
+            "_id": ObjectId(self.id),
             "is_main": self.is_main,
             "headers": self.headers,
             "body": self.body,
@@ -54,4 +60,4 @@ class EmailMessage:
         return db_entry
 
     def __str__(self):
-        return f"EmailMessage({self._id}, {self.body})"
+        return f"EmailMessage({self.id}, {self.body})"

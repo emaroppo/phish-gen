@@ -41,7 +41,7 @@ class EnronDataImporter(DataImporter):
                 collection="raw_data_multipart", n=sample
             )
         elif sample is None:
-            multithread_docs = query_manager.connection["enron_emails"][
+            multithread_docs = query_manager.connection[self.db_name][
                 "raw_data_multipart"
             ].find()
 

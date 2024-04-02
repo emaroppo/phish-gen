@@ -1,21 +1,9 @@
-from common_classes.QueryManager import query_manager
-from bson import ObjectId
 from common_classes.EmailMessage import EmailMessage
 import email
 import re
 
 
 class EnronMessage(EmailMessage):
-    def __init__(
-        self,
-        _id: ObjectId = None,
-        is_main: bool = False,
-        headers: dict = dict(),
-        body: str = "",
-        response: ObjectId = None,
-        forwarded_by: ObjectId = None,
-    ):
-        super().__init__(_id, is_main, headers, body, response, forwarded_by)
 
     def extract_headers_main(self):
         message = email.message_from_string(self.body)

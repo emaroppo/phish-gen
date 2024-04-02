@@ -1,23 +1,27 @@
+from pydantic import root_validator
+from typing import List, Union
 from common_classes.EmailThread import EmailThread
 from data.enron.EnronMessage import EnronMessage
+from common_classes.EmailMessage import EmailMessage
 import re
 
 
 class EnronThread(EmailThread):
+    messages: List[Union[EnronMessage, EmailMessage]]
 
-    def __init__(
-        self, _id=None, messages=[], file_path=None, db_name=None, collection=None
-    ):
-        super().__init__(
-            _id=_id,
-            messages=messages,
-            file_path=file_path,
-            db_name=db_name,
-            collection=collection,
-        )
-
-        if self.messages:
-            self.messages = [EnronMessage(**i) for i in messages]
+    @root_validator(pre=True)
+    def convert_messages(cls, values):
+        messages = values.get('messages', [])
+        for i, message in enumerate(messages):
+            if isinstance(message, EmailMessage):
+                message = EnronMessage(**message.model_dump())
+            if isinstance(message, dict):
+                if "_id" in message:
+                    message["id"] = message.pop("_id")
+                message = EnronMessage(**message)
+            messages[i] = message
+        values['messages'] = messages
+        return values
 
     def extract_forwarded_messages(self, message: EnronMessage):
 
@@ -29,9 +33,12 @@ class EnronThread(EmailThread):
 
         if len(split_message) > 1:
 
-            super().extract_forwarded_messages(self._id, message, split_message)
-            self.messages = [EnronMessage(**i.__dict__) for i in self.messages]
-        self.messages = [EnronMessage(**i.__dict__) for i in self.messages]
+            super().extract_forwarded_messages(self.id, message, split_message)
+
+        self.messages = [
+            EnronMessage(**i.dict()) if isinstance(i, EmailMessage) else i
+            for i in self.messages
+        ]
 
     def split_original_messages(self, message: EnronMessage):
         og_regex = re.compile(
@@ -44,7 +51,7 @@ class EnronThread(EmailThread):
 
             super().split_original_messages(message, split_message)
 
-        self.messages = [EnronMessage(**i.__dict__) for i in self.messages]
+        self.messages = [EnronMessage(**i.dict()) for i in self.messages]
 
     def clean(self):
         for i in self.messages:
@@ -52,7 +59,7 @@ class EnronThread(EmailThread):
 
         # make sure self.messages is correctly updated with the new messages
 
-        self.messages = [EnronMessage(**i.__dict__) for i in self.messages]
+        self.messages = [EnronMessage(**i.dict()) for i in self.messages]
 
         for i in self.messages:
             # adjust headers extraction to also works for forwarded messages
@@ -60,6 +67,6 @@ class EnronThread(EmailThread):
             try:  # temporary fix
                 i.extract_headers()
             except AttributeError:
-                i = EnronMessage(**i.__dict__)
+                i = EnronMessage(**i.dict())
                 i.extract_headers()
             self.extract_forwarded_messages(i)
