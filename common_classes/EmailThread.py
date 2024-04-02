@@ -6,7 +6,7 @@ from pydantic import BaseModel, model_validator, Field
 
 
 class ThreadEntry(BaseModel):
-    id: ObjectId = Field(alias="_id")
+    _id: ObjectId
     file_path: str
     messages: List[Dict[str, Any]]
 
@@ -68,7 +68,6 @@ class EmailThread(BaseModel):
         message["is_main"] = True
         thread_doc["messages"].append(message)
 
-        query_manager.save_entry(thread_doc, db_name, collection)
         # rename _id to id and convert to string for each message
         for i in thread_doc["messages"]:
             i["id"] = str(i.pop("_id"))
@@ -137,6 +136,7 @@ class EmailThread(BaseModel):
         return f"EmailThread({self.id}, {self.file_path})"
 
     def save(self):
+        entry = self.to_db_entry()
         query_manager.connection[self.db_name][self.collection].update_one(
             {"_id": ObjectId(self.id)},
             {"$set": self.to_db_entry()},

@@ -1,10 +1,10 @@
 from bson import ObjectId
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 
 
 class EmailMessageEntry(BaseModel):
-    _id: ObjectId
+    id: ObjectId = Field(alias="_id")
     is_main: bool
     headers: Optional[Dict[str, str]] = None
     body: str
@@ -69,7 +69,7 @@ class EmailMessage(BaseModel):
         if self.forwarded_by is not None:
             db_entry["forwarded_by"] = ObjectId(self.forwarded_by)
 
-        return EmailMessageEntry(**db_entry).model_dump()
+        return EmailMessageEntry(**db_entry).model_dump(by_alias=True)
 
     def __str__(self):
         return f"EmailMessage({self.id}, {self.body})"
