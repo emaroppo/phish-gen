@@ -1,4 +1,4 @@
-from pydantic import root_validator
+from pydantic import model_validator
 from typing import List, Union
 from common_classes.EmailThread import EmailThread
 from data.enron.EnronMessage import EnronMessage
@@ -9,9 +9,9 @@ import re
 class EnronThread(EmailThread):
     messages: List[Union[EnronMessage, EmailMessage]]
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
     def convert_messages(cls, values):
-        messages = values.get('messages', [])
+        messages = values.get("messages", [])
         for i, message in enumerate(messages):
             if isinstance(message, EmailMessage):
                 message = EnronMessage(**message.model_dump())
@@ -20,7 +20,7 @@ class EnronThread(EmailThread):
                     message["id"] = message.pop("_id")
                 message = EnronMessage(**message)
             messages[i] = message
-        values['messages'] = messages
+        values["messages"] = messages
         return values
 
     def extract_forwarded_messages(self, message: EnronMessage):
@@ -36,7 +36,7 @@ class EnronThread(EmailThread):
             super().extract_forwarded_messages(self.id, message, split_message)
 
         self.messages = [
-            EnronMessage(**i.dict()) if isinstance(i, EmailMessage) else i
+            EnronMessage(**i.model_dump()) if isinstance(i, EmailMessage) else i
             for i in self.messages
         ]
 
@@ -51,7 +51,7 @@ class EnronThread(EmailThread):
 
             super().split_original_messages(message, split_message)
 
-        self.messages = [EnronMessage(**i.dict()) for i in self.messages]
+        self.messages = [EnronMessage(**i.model_dump()) for i in self.messages]
 
     def clean(self):
         for i in self.messages:
@@ -59,14 +59,18 @@ class EnronThread(EmailThread):
 
         # make sure self.messages is correctly updated with the new messages
 
-        self.messages = [EnronMessage(**i.dict()) for i in self.messages]
+        self.messages = [EnronMessage(**i.model_dump()) for i in self.messages]
 
         for i in self.messages:
             # adjust headers extraction to also works for forwarded messages
+            self.extract_forwarded_messages(i)
 
-            try:  # temporary fix
+        for i in self.messages:
+            # temporary fix
+            try:
                 i.extract_headers()
             except AttributeError:
-                i = EnronMessage(**i.dict())
+                i = EnronMessage(**i.model_dump())
                 i.extract_headers()
-            self.extract_forwarded_messages(i)
+
+        self.save()

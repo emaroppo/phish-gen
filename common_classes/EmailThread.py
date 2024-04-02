@@ -1,8 +1,17 @@
 from common_classes.QueryManager import query_manager
 from bson import ObjectId
 from common_classes.EmailMessage import EmailMessage
-from typing import List, Optional
-from pydantic import BaseModel, model_validator
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, model_validator, Field
+
+
+class ThreadEntry(BaseModel):
+    id: ObjectId = Field(alias="_id")
+    file_path: str
+    messages: List[Dict[str, Any]]
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class EmailThread(BaseModel):
@@ -12,18 +21,16 @@ class EmailThread(BaseModel):
     db_name: str
     collection: str
 
-    
-
     @classmethod
     def deserialize(cls, data):
         object_id_fields = ["_id"]
         for field in object_id_fields:
             if field in data:
                 data[field] = str(data[field])
-        
+
         if "_id" in data:
             data["id"] = data.pop("_id")
-        
+
         messages = [EmailMessage.deserialize(i) for i in data["messages"]]
         data["messages"] = messages
 
@@ -62,10 +69,10 @@ class EmailThread(BaseModel):
         thread_doc["messages"].append(message)
 
         query_manager.save_entry(thread_doc, db_name, collection)
-        #rename _id to id and convert to string for each message
+        # rename _id to id and convert to string for each message
         for i in thread_doc["messages"]:
             i["id"] = str(i.pop("_id"))
-        
+
         messages = [EmailMessage(**i) for i in thread_doc["messages"]]
         thread_doc["messages"] = messages
         thread_doc["db_name"] = db_name
@@ -87,12 +94,10 @@ class EmailThread(BaseModel):
             message_thread.append(message)
             previous_id = message.id
 
-        # save the split thread
-        message_thread_entries = [i.to_db_entry() for i in message_thread]
-        query_manager.connection[self.db_name][self.collection].update_one(
-            {"_id": self.id}, {"$set": {"messages": message_thread_entries}}
-        )
+        # save the split thread in the db
         self.messages = message_thread
+
+        self.save()
 
     def extract_forwarded_messages(
         self,
@@ -118,20 +123,25 @@ class EmailThread(BaseModel):
             {"$push": {"messages": new_message.to_db_entry()}},
         )
         self.messages.append(new_message)
+        self.save()
 
-    def to_db_entry(self):
+    def to_db_entry(self) -> ThreadEntry:
         db_entry = {
             "_id": ObjectId(self.id),
             "file_path": self.file_path,
             "messages": [i.to_db_entry() for i in self.messages],
         }
-        return db_entry
+        return ThreadEntry(**db_entry).model_dump()
 
     def __str__(self):
         return f"EmailThread({self.id}, {self.file_path})"
 
     def save(self):
-        query_manager.save_entry(self.to_db_entry(), self.db_name, self.collection)
+        query_manager.connection[self.db_name][self.collection].update_one(
+            {"_id": ObjectId(self.id)},
+            {"$set": self.to_db_entry()},
+            upsert=True,
+        )
 
 
 # Path: data/EmailMessage.py

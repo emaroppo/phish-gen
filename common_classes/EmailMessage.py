@@ -3,6 +3,18 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any
 
 
+class EmailMessageEntry(BaseModel):
+    _id: ObjectId
+    is_main: bool
+    headers: Optional[Dict[str, str]] = None
+    body: str
+    response: Optional[ObjectId] = None
+    forwarded_by: Optional[ObjectId] = None
+
+    class Config:
+        arbitrary_types_allowed = True
+
+
 class EmailMessage(BaseModel):
     id: str
     is_main: bool
@@ -18,7 +30,7 @@ class EmailMessage(BaseModel):
             if field in data:
                 data[field] = str(data[field])
 
-        #update _id key to id
+        # update _id key to id
         if "_id" in data:
             data["id"] = data.pop("_id")
 
@@ -45,7 +57,7 @@ class EmailMessage(BaseModel):
 
         return cls(**message_doc)
 
-    def to_db_entry(self):
+    def to_db_entry(self) -> EmailMessageEntry:
         db_entry = {
             "_id": ObjectId(self.id),
             "is_main": self.is_main,
@@ -53,11 +65,11 @@ class EmailMessage(BaseModel):
             "body": self.body,
         }
         if self.response is not None:
-            db_entry["response"] = self.response
+            db_entry["response"] = ObjectId(self.response)
         if self.forwarded_by is not None:
-            db_entry["forwarded_by"] = self.forwarded_by
+            db_entry["forwarded_by"] = ObjectId(self.forwarded_by)
 
-        return db_entry
+        return EmailMessageEntry(**db_entry).model_dump()
 
     def __str__(self):
         return f"EmailMessage({self.id}, {self.body})"

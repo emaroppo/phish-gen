@@ -18,6 +18,7 @@ class EnronDataImporter(DataImporter):
                             thread = EnronThread.from_text(
                                 text, j[0] + "/" + k, self.db_name, "raw_data"
                             )
+                            thread.save()
 
     def isolate_multiparts(self, sample=None):
         match_dict = {
