@@ -1,4 +1,5 @@
 from common_classes.QueryManager import query_manager
+import bson.json_util as json_util
 
 
 class DataImporter:
@@ -16,4 +17,16 @@ class DataImporter:
             {"$match": match_dict},
             {"$sample": {"size": n}},
         ]
-        return list(query_manager[self.db_name][collection].aggregate(pipeline))
+        return list(
+            query_manager.connection[self.db_name][collection].aggregate(pipeline)
+        )
+
+    def export_json(
+        self, collection="raw_data_multipart", query=dict(), path="data.json", n=500
+    ):
+        with open(path, "w") as f:
+            f.write("[\n")
+            for i in self.retrieve_samples(query, collection, n):
+                f.write(json_util.dumps(i) + ",\n")
+            f.write("]\n")
+        return
