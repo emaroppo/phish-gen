@@ -1,40 +1,51 @@
 from pydantic import BaseModel
 from typing import List, Dict
 from common_classes.QueryManager import query_manager
-from torch.utils.data import DataLoader
-import torch
 from transformers import PreTrainedTokenizer
+from datasets import Dataset
+from typing import List
 
 
 class DatasetFactory(BaseModel):
     databases: Dict[str, List[str]]  # key: db_name, value: list of collections
 
-    def generate_dataset(self, tokenizer: PreTrainedTokenizer, max_length: int = 512):
+    def generate_dataset(
+        self,
+        tokenizer: PreTrainedTokenizer,
+        prompt_fields=List[str],
+        target_fields=List[str],
+        max_length: int = 512,
+    ):
+
+        dataset = list()
+
+        projection = {
+            "$project": {
+                "_id": 0,  # Assuming you don't want to include the MongoDB ID in the results
+                "prompt_fields": {
+                    field: f"$messages.{field}" for field in prompt_fields
+                },
+                "target_fields": {
+                    field: f"$messages.{field}" for field in target_fields
+                },
+            }
+        }
+
+        def tokenize_function(examples):
+            return tokenizer(
+                examples["text"],
+                padding="max_length",
+                truncation=True,
+                max_length=max_length,
+            )
+
         for db_name, collections in self.databases.items():
             for collection in collections:
                 # retrieve data from the database
-                data = list(
-                    query_manager.connection[db_name][collection].find().limit(5000)
-                )
+                dataset = query_manager.db[db_name][collection].aggregate([projection])
+                dataset = [str(doc) for doc in dataset]
+                dataset.extend(dataset)
 
-                data = [
-                    i["messages"][0]
-                    for i in data
-                    if "messages" in i and "body" in i["messages"][0]
-                ]
-
-                tensorized_samples = []
-                for sample in data:
-                    del sample["_id"]
-                    body = sample.pop("body")
-                    prompt = f"{str(sample)} -> {str(body)}"
-                    encoded_sample = tokenizer(
-                        prompt,
-                        truncation=True,
-                        padding="max_length",
-                        max_length=max_length,
-                        return_tensors="pt",
-                    )
-                    tensorized_samples.extend(encoded_sample["input_ids"])
-
-                return DataLoader(tensorized_samples, batch_size=32, shuffle=True)
+        dataset = Dataset.from_dict({"text": dataset})
+        dataset = dataset.map(tokenize_function, batched=True)
+        return dataset
