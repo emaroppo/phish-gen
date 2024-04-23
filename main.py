@@ -1,6 +1,19 @@
-from data.enron.EnronDataImporter import EnronDataImporter
+from common_classes.DatasetFactory import DatasetFactory
+from transformers import BertTokenizer
 
-enron = EnronDataImporter("data/enron/dataset/maildir", "enron_emails_test")
-enron.load_raw_data()
-enron.isolate_multiparts()
-enron.clean_multiparts()
+# Define the databases and collections to query
+databases = {
+    "enron_emails": ["raw_data_multipart"],
+}
+
+
+def main():
+    # Load the dataset
+    dataset_factory = DatasetFactory(databases=databases)
+    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+    dataset = dataset_factory.generate_dataset(
+        tokenizer=tokenizer, save_path="data/datasets/"
+    )
+
+
+main()

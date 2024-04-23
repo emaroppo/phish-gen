@@ -12,9 +12,14 @@ class DatasetFactory(BaseModel):
     def generate_dataset(
         self,
         tokenizer: PreTrainedTokenizer,
-        prompt_fields=List[str],
-        target_fields=List[str],
+        prompt_fields: List[str] = [
+            "headers",
+        ],
+        target_fields: List[str] = [
+            "body",
+        ],
         max_length: int = 512,
+        save_path: str = None,
     ):
 
         dataset = list()
@@ -42,10 +47,14 @@ class DatasetFactory(BaseModel):
         for db_name, collections in self.databases.items():
             for collection in collections:
                 # retrieve data from the database
-                dataset = query_manager.db[db_name][collection].aggregate([projection])
+                dataset = query_manager.connection[db_name][collection].aggregate(
+                    [projection]
+                )
                 dataset = [str(doc) for doc in dataset]
                 dataset.extend(dataset)
 
         dataset = Dataset.from_dict({"text": dataset})
+        if save_path:
+            dataset.save_to_disk(save_path)
         dataset = dataset.map(tokenize_function, batched=True)
         return dataset
