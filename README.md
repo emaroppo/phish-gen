@@ -1,5 +1,5 @@
 # Phishing Email Generator
-![alt text](https://github.com/emaroppo/phish-gen/blob/main/docs/Dissertation_Diagram.png?raw=true)
+[![Optional Image Description](https://github.com/emaroppo/phish-gen/blob/main/docs/diagrams/thumbs/Dissertation_Diagram_thumb.png?raw=true)](https://github.com/emaroppo/phish-gen/blob/main/docs/diagrams/Dissertation_Diagram.png?raw=true)
 ## Overview
 The aim of this project is to deliver an effective generator of phishing emails. The project has 4 (possible) components:
 1. An offline finetuning module, which will be used to produce a model that can generate phishing emails based on the prompt given by the user.
