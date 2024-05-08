@@ -27,8 +27,8 @@ The goal of this module is to produce a model that can generate a phishing email
     1. *DNCDataImporter* is still in progress; a significant number of the threads are stored as html files, which need to be parsed correctly
 
 - To Do:
-    1. Define the placeholders to be used in the dataset and implement the preprocessing step
-    2. Define models to be used for the additional fields and label dataset
+    1. Define the placeholders to be used in the dataset and test the preprocessing step
+    2. Define models to be used for the additional fields and label dataset and test *ModelLabeller* class
     3. Train LoRa to parse/clean the dataset
     4. Define prompt and target fields for the dataset export
     5. Containerize mongodb for dataset portability
