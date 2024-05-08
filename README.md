@@ -18,9 +18,9 @@ The goal of this module is to produce a model that can generate a phishing email
 
 - Done:
     1. *EnronDataImporter* correctly imports the data from the Enron dataset.
-    2. *EnronEmailThread* and EnronEmailMessage mostly separate the email threads and messages correctly, but there are still some mistakes
+    2. *EnronEmailThread* and EnronEmailMessage mostly separate the email threads and messages correctly, but there are still some mistakes; base logic to inject placeholders is implemented, but still needs to be tested and the regular expressions still need to be defined
     3. *EnronEmailMessage* correctly extracts the body and metadata from the email messages, but there are still some mistakes
-    4. *DatasetFactory* correctly creates a dataset from the database
+    4. *DatasetFactory* correctly creates a dataset from the database for the decoder model, still need to test the method to create the dataset for the models used for labelling in prefix finetuning
     5. LoRA training script should work, but is still untested on the dataset and does not yet include the placeholders in the vocabulary
 
 - In progress:
@@ -31,6 +31,7 @@ The goal of this module is to produce a model that can generate a phishing email
     2. Define models to be used for the additional fields and label dataset
     3. Train LoRa to parse/clean the dataset
     4. Define prompt and target fields for the dataset export
+    5. Containerize mongodb for dataset portability
 
 ## 2. Message Generator
 This class is pretty straightforward. It has a *.generate_message()* method, which takes a prompt and passes is to the model. It then takes the output of the model, injects it into a style template and replaces the values of the placeholders with the desired values.

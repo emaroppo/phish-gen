@@ -22,7 +22,9 @@ class EmailThread(BaseModel):
     collection: str
 
     @classmethod
-    def deserialize(cls, data):
+    def deserialize(
+        cls, data
+    ):  # may need to add db_name and collection fields to properly deserialize?
         object_id_fields = ["_id"]
         for field in object_id_fields:
             if field in data:
