@@ -58,3 +58,21 @@ class DatasetFactory(BaseModel):
             dataset.save_to_disk(save_path)
         dataset = dataset.map(tokenize_function, batched=True)
         return dataset
+
+    def generate_dataset_for_labelling(
+        self, tokenizer: PreTrainedTokenizer, max_length: int = 512
+    ):
+        dataset = list()
+        for db_name, collections in self.databases.items():
+            for collection in collections:
+                threads = query_manager.connection[db_name][collection].find()
+                for thread in threads:
+                    for message in thread["messages"]:
+                        tokenized_message = tokenizer(
+                            message["body"],
+                            padding="max_length",
+                            truncation=True,
+                            max_length=max_length,
+                        )
+                        dataset.append(tokenized_message)
+        return dataset
