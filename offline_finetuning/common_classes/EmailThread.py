@@ -80,6 +80,29 @@ class EmailThread(BaseModel):
 
         return cls(**thread_doc)
 
+    @classmethod
+    def insert_special_tokens(
+        cls, field_name, placeholder, regex_list, db_name, collection
+    ):
+        for regex in regex_list:
+            threads = query_manager.connection[db_name][collection].find(
+                {"messages.body": {"$regex": regex}}
+            )
+            threads = [cls.deserialize(i) for i in threads]
+            for thread in threads:
+                thread.insert_placeholder(field_name, placeholder, regex, save=True)
+
+    @classmethod
+    def insert_all_special_tokens(cls, placeholders_dict, db_name, collection):
+        for field_name, value in placeholders_dict.items():
+            cls.insert_special_tokens(
+                field_name,
+                value["placeholder"],
+                value["regex_list"],
+                db_name,
+                collection,
+            )
+
     def split_original_messages(
         self, original_message: EmailMessage, split_items: List[str]
     ):
@@ -110,6 +133,7 @@ class EmailThread(BaseModel):
             split_items.pop(-1), forwarded_by=original_message.id
         )
         # update the original message body in the db
+        # not a fan of this approach if possible would like to change to changing the original EmailMessage object and then saving the changes to db
         query_manager.connection[self.db_name][self.collection].update_one(
             {"_id": thread_id, "messages._id": original_message.id},
             {"$set": {"messages.$[elem].body": original_message.body}},
@@ -123,6 +147,15 @@ class EmailThread(BaseModel):
         )
         self.messages.append(new_message)
         self.save()
+
+    def insert_placeholder(
+        self, field_name, placeholder: str, regex_list: str, save: bool = False
+    ):
+        for i in self.messages:
+            i.insert_placeholder(field_name, placeholder, regex_list)
+
+        if save:
+            self.save()
 
     def to_db_entry(self) -> ThreadEntry:
         db_entry = {

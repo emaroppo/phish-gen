@@ -1,6 +1,7 @@
 from bson import ObjectId
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
+from typing import Optional, List, Dict, Any
+import re
 
 
 class EmailMessageEntry(BaseModel):
@@ -56,6 +57,18 @@ class EmailMessage(BaseModel):
             message_doc["forwarded_by"] = forwarded_by
 
         return cls(**message_doc)
+
+    def insert_placeholder(self, field_name, placeholder: str, regex: str):
+        original_values = re.findall(regex, self.body)
+        if original_values:
+            if field_name in self.__dict__:  # restore original values
+                self.__dict__[field_name].extend(original_values)
+            else:
+                self.__dict__[field_name] = original_values
+
+        self.body = re.sub(regex, placeholder, self.body)
+
+        return self.body
 
     def to_db_entry(self) -> EmailMessageEntry:
         db_entry = {
