@@ -1,15 +1,17 @@
 from pydantic import BaseModel
 from typing import List, Dict
-from common_classes.QueryManager import query_manager
+from offline_finetuning.common_classes.QueryManager import query_manager
 from transformers import PreTrainedTokenizer
 from datasets import Dataset
 from typing import List
+import json
+from tqdm import tqdm
 
 
 class DatasetFactory(BaseModel):
     databases: Dict[str, List[str]]  # key: db_name, value: list of collections
 
-    def generate_dataset(
+    def generate_torch_dataset(
         self,
         tokenizer: PreTrainedTokenizer,
         prompt_fields: List[str] = [
@@ -76,3 +78,71 @@ class DatasetFactory(BaseModel):
                         )
                         dataset.append(tokenized_message)
         return dataset
+
+    def generate_doccamo_dataset(self):
+
+        messages = list()
+
+        for db_name, collections in self.databases.items():
+            for collection in collections:
+                pipeline = [
+                    {
+                        "$match": {
+                            "messages.body": {"$exists": True},
+                            "messages.headers": {"$exists": True},
+                        }
+                    },
+                    {"$project": {"message": {"$arrayElemAt": ["$messages", -1]}}},
+                ]
+
+                messages.extend(
+                    list(
+                        query_manager.connection[db_name][collection].aggregate(
+                            pipeline
+                        )
+                    )
+                )
+
+        entries = list()
+        for message in tqdm(messages):
+
+            if "headers" not in message["message"]:
+                continue
+
+            if message["message"]["headers"] is None:  # temporary fix
+                continue
+
+            labels = list()
+            entry_str = str()
+            for key, value in message["message"]["headers"].items():
+                new_field = f"{key}: {value}"
+
+                labels.append(
+                    [len(entry_str), len(entry_str) + len(new_field), "HEADER_FIELD"]
+                )
+                labels.append([len(entry_str), len(entry_str) + len(key), "HEADER_KEY"])
+                labels.append(
+                    [
+                        len(entry_str) + len(new_field) - len(value),
+                        len(entry_str) + len(new_field),
+                        "HEADER_VALUE",
+                    ]
+                )
+
+                entry_str += new_field + "\n"
+            labels.append([0, len(entry_str), "HEADER"])
+            entry_str += "\n" + message["message"]["body"]
+            labels.append(
+                [
+                    len(entry_str) - len(message["message"]["body"]),
+                    len(entry_str),
+                    "BODY",
+                ]
+            )
+
+            entry_str += "\nMessage ID: " + str(message["message"]["_id"])
+            entries.append({"text": entry_str, "labels": labels})
+
+        with open("doccano_dataset.jsonl", "w") as f:
+            for item in entries:
+                f.write(json.dumps(item) + "\n")
