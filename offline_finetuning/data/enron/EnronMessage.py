@@ -25,7 +25,7 @@ class EnronMessage(EmailMessage):
             headers_block = match.group("Headers")
 
             intermediate_headers = dict(
-                re.findall(r"^(.*?):\s*(.*)$", headers_block, re.MULTILINE)
+                re.findall(r"^([\w\-]*?):\s*(.*)$", headers_block, re.MULTILINE)
             )
 
             headers = {"From": from_header, "Subject": subject_header}
