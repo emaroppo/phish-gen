@@ -1,5 +1,5 @@
-from pydantic import model_validator
-from typing import List, Union
+from pydantic import model_validator, Field
+from typing import List, Union, Pattern
 from common_classes.EmailThread import EmailThread
 from data.enron.EnronMessage import EnronMessage
 from common_classes.EmailMessage import EmailMessage
@@ -8,6 +8,20 @@ import re
 
 class EnronThread(EmailThread):
     messages: List[Union[EnronMessage, EmailMessage]]
+    og_regex: Pattern[str] = Field(
+        re.compile(
+            r"(?:(?:-+)\s*Original\s*Message\s*-+)",
+            re.MULTILINE | re.DOTALL,
+        ),
+        const=True,
+    )
+    fw_regex: Pattern[str] = Field(
+        re.compile(
+            r"(?:-+)\s+Forwarded\s+by\s+(?P<sender>.*)\s+on\s+(?P<datetime>(?:\d){1,2}\/(?:\d){1,2}\/(?:\d){2,4}\s+(?:\d){1,2}:(?:\d){2}\s+(?:(?:AM)|(?:PM)))\s+-+",
+            re.MULTILINE | re.DOTALL,
+        ),
+        const=True,
+    )
 
     @model_validator(mode="before")
     def convert_messages(cls, values):
@@ -25,11 +39,7 @@ class EnronThread(EmailThread):
 
     def extract_forwarded_messages(self, message: EnronMessage):
 
-        fw_regex = re.compile(
-            r"(?:-+)\s+Forwarded\s+by\s+(?P<sender>.*)\s+on\s+(?P<datetime>(?:\d){1,2}\/(?:\d){1,2}\/(?:\d){2,4}\s+(?:\d){1,2}:(?:\d){2}\s+(?:(?:AM)|(?:PM)))\s+-+",
-            re.MULTILINE | re.DOTALL,
-        )
-        split_message = fw_regex.split(message.body)
+        split_message = self.fw_regex.split(message.body)
 
         if len(split_message) > 1:
 
@@ -41,11 +51,8 @@ class EnronThread(EmailThread):
         ]
 
     def split_original_messages(self, message: EnronMessage):
-        og_regex = re.compile(
-            r"(?:(?:-+)\s*Original\s*Message\s*-+)",
-            re.MULTILINE | re.DOTALL,
-        )
-        split_message = og_regex.split(message.body)
+
+        split_message = self.og_regex.split(message.body)
 
         if len(split_message) > 1:
 
