@@ -1,4 +1,4 @@
-from common_classes.EmailMessage import EmailMessage
+from offline_finetuning.common_classes.EmailMessage import EmailMessage
 import email
 import re
 

@@ -1,8 +1,8 @@
 from pydantic import model_validator, Field
 from typing import List, Union, Pattern
-from common_classes.EmailThread import EmailThread
-from data.enron.EnronMessage import EnronMessage
-from common_classes.EmailMessage import EmailMessage
+from offline_finetuning.common_classes.EmailThread import EmailThread
+from offline_finetuning.data.enron.EnronMessage import EnronMessage
+from offline_finetuning.common_classes.EmailMessage import EmailMessage
 import re
 
 
@@ -13,14 +13,12 @@ class EnronThread(EmailThread):
             r"(?:(?:-+)\s*Original\s*Message\s*-+)",
             re.MULTILINE | re.DOTALL,
         ),
-        const=True,
     )
     fw_regex: Pattern[str] = Field(
         re.compile(
             r"(?:-+)\s+Forwarded\s+by\s+(?P<sender>.*)\s+on\s+(?P<datetime>(?:\d){1,2}\/(?:\d){1,2}\/(?:\d){2,4}\s+(?:\d){1,2}:(?:\d){2}\s+(?:(?:AM)|(?:PM)))\s+-+",
             re.MULTILINE | re.DOTALL,
-        ),
-        const=True,
+        )
     )
 
     @model_validator(mode="before")

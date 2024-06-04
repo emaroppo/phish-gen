@@ -11,6 +11,7 @@ class EmailMessageEntry(BaseModel):
     body: str
     response: Optional[ObjectId] = None
     forwarded_by: Optional[ObjectId] = None
+    special_tokens: Optional[Dict[str, List[str]]] = None
 
     class Config:
         arbitrary_types_allowed = True
@@ -23,6 +24,7 @@ class EmailMessage(BaseModel):
     body: str
     response: Optional[str] = None
     forwarded_by: Optional[str] = None
+    special_tokens: Optional[Dict[str, List[str]]] = None
 
     @classmethod
     def deserialize(cls, data: Dict[str, Any]):
@@ -61,10 +63,15 @@ class EmailMessage(BaseModel):
     def insert_placeholder(self, field_name, placeholder: str, regex: str):
         original_values = re.findall(regex, self.body)
         if original_values:
-            if field_name in self.__dict__:  # restore original values
-                self.__dict__[field_name].extend(original_values)
+            if (
+                "special_tokens" not in self.__dict__
+                or not self.__dict__["special_tokens"]
+            ):
+                self.__dict__["special_tokens"] = dict()
+            if field_name in self.__dict__["special_tokens"]:  # store original values
+                self.__dict__["special_tokens"][field_name].extend(original_values)
             else:
-                self.__dict__[field_name] = original_values
+                self.__dict__["special_tokens"][field_name] = original_values
 
         self.body = re.sub(regex, placeholder, self.body)
 
@@ -77,9 +84,12 @@ class EmailMessage(BaseModel):
             "headers": self.headers,
             "body": self.body,
         }
-        if self.response is not None:
+        if self.special_tokens is not None:
+            db_entry["special_tokens"] = self.special_tokens
+        if self.response is not None and self.response != "None":
+
             db_entry["response"] = ObjectId(self.response)
-        if self.forwarded_by is not None:
+        if self.forwarded_by is not None and self.forwarded_by != "None":
             db_entry["forwarded_by"] = ObjectId(self.forwarded_by)
 
         return EmailMessageEntry(**db_entry).model_dump(by_alias=True)

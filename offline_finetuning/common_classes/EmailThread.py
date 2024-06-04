@@ -1,6 +1,6 @@
-from common_classes.QueryManager import query_manager
+from offline_finetuning.common_classes.QueryManager import query_manager
 from bson import ObjectId
-from common_classes.EmailMessage import EmailMessage
+from offline_finetuning.common_classes.EmailMessage import EmailMessage
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, model_validator, Field
 
@@ -23,7 +23,7 @@ class EmailThread(BaseModel):
 
     @classmethod
     def deserialize(
-        cls, data
+        cls, data, db_name: str = None, collection: str = None
     ):  # may need to add db_name and collection fields to properly deserialize?
         object_id_fields = ["_id"]
         for field in object_id_fields:
@@ -35,6 +35,8 @@ class EmailThread(BaseModel):
 
         messages = [EmailMessage.deserialize(i) for i in data["messages"]]
         data["messages"] = messages
+        data["db_name"] = db_name
+        data["collection"] = collection
 
         return cls(**data)
 
@@ -81,29 +83,7 @@ class EmailThread(BaseModel):
         thread_doc["id"] = str(thread_doc.pop("_id"))
 
         return cls(**thread_doc)
-
-    @classmethod
-    def insert_special_tokens(
-        cls, field_name, placeholder, regex_list, db_name, collection
-    ):
-        for regex in regex_list:
-            threads = query_manager.connection[db_name][collection].find(
-                {"messages.body": {"$regex": regex}}
-            )
-            threads = [cls.deserialize(i) for i in threads]
-            for thread in threads:
-                thread.insert_placeholder(field_name, placeholder, regex, save=True)
-
-    @classmethod
-    def insert_all_special_tokens(cls, placeholders_dict, db_name, collection):
-        for field_name, value in placeholders_dict.items():
-            cls.insert_special_tokens(
-                field_name,
-                value["placeholder"],
-                value["regex_list"],
-                db_name,
-                collection,
-            )
+    
 
     def split_original_messages(
         self, original_message: EmailMessage, split_items: List[str]
@@ -151,7 +131,7 @@ class EmailThread(BaseModel):
         self.save()
 
     def insert_placeholder(
-        self, field_name, placeholder: str, regex_list: str, save: bool = False
+        self, field_name, placeholder: str, regex_list: str, save: bool = True
     ):
         for i in self.messages:
             i.insert_placeholder(field_name, placeholder, regex_list)
