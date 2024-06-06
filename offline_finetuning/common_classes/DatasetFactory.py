@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import List, Dict
 from offline_finetuning.common_classes.QueryManager import query_manager
+from offline_finetuning.data.enron.placeholder_dict import placeholder_dict
 from transformers import PreTrainedTokenizer
 from datasets import Dataset
 from typing import List
@@ -79,12 +80,13 @@ class DatasetFactory(BaseModel):
                         dataset.append(tokenized_message)
         return dataset
 
-    def generate_doccamo_dataset(self):
+    def generate_doccamo_dataset(self, placeholder_dict: dict = placeholder_dict):
 
         messages = list()
 
         for db_name, collections in self.databases.items():
             for collection in collections:
+                print(collection)
                 pipeline = [
                     {
                         "$match": {
@@ -106,14 +108,16 @@ class DatasetFactory(BaseModel):
         entries = list()
         for message in tqdm(messages):
 
+            labels = list()
+            entry_str = str()
+
+            # add headers labels
             if "headers" not in message["message"]:
                 continue
 
             if message["message"]["headers"] is None:  # temporary fix
                 continue
 
-            labels = list()
-            entry_str = str()
             for key, value in message["message"]["headers"].items():
                 new_field = f"{key}: {value}"
 
@@ -132,9 +136,37 @@ class DatasetFactory(BaseModel):
                 entry_str += new_field + "\n"
             labels.append([0, len(entry_str), "HEADER"])
             entry_str += "\n" + message["message"]["body"]
+
+            # add placeholder labels
+            if "special_tokens" in message["message"]:
+                if message["message"]["special_tokens"] is not None:
+                    for key, values in message["message"]["special_tokens"].items():
+                        for value in values:
+                            # find the position of the placeholder in the entry string
+                            start = entry_str.find(placeholder_dict[key]["placeholder"])
+                            # replace the placeholder with the original value
+                            entry_str = entry_str.replace(
+                                placeholder_dict[key]["placeholder"], value, 1
+                            )
+                            end = start + len(value)
+                            # add the label to the entry string
+                            labels.append([start, end, key.upper()])
+
+                    # add the body label
+                    # calculate the length of the body with the original values instead of placeholders
+                    body_length = len(message["message"]["body"])
+                    for key, values in message["message"]["special_tokens"].items():
+                        for value in values:
+                            body_length -= len(placeholder_dict[key]["placeholder"])
+                            body_length += len(value)
+                else:
+                    body_length = len(message["message"]["body"])
+            else:
+                body_length = len(message["message"]["body"])
+
             labels.append(
                 [
-                    len(entry_str) - len(message["message"]["body"]),
+                    len(entry_str) - body_length,
                     len(entry_str),
                     "BODY",
                 ]
@@ -143,6 +175,6 @@ class DatasetFactory(BaseModel):
             entry_str += "\nMessage ID: " + str(message["message"]["_id"])
             entries.append({"text": entry_str, "labels": labels})
 
-        with open("doccano_dataset.jsonl", "w") as f:
+        with open("doccano_dataset_1.jsonl", "w") as f:
             for item in entries:
                 f.write(json.dumps(item) + "\n")
