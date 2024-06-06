@@ -83,7 +83,6 @@ class EmailThread(BaseModel):
         thread_doc["id"] = str(thread_doc.pop("_id"))
 
         return cls(**thread_doc)
-    
 
     def split_original_messages(
         self, original_message: EmailMessage, split_items: List[str]
@@ -131,13 +130,18 @@ class EmailThread(BaseModel):
         self.save()
 
     def insert_placeholder(
-        self, field_name, placeholder: str, regex_list: str, save: bool = True
+        self,
+        field_name,
+        placeholder: str,
+        regex_list: str,
+        save: bool = True,
+        target_collection: str = None,
     ):
         for i in self.messages:
             i.insert_placeholder(field_name, placeholder, regex_list)
 
         if save:
-            self.save()
+            self.save(target_collection=target_collection)
 
     def to_db_entry(self) -> ThreadEntry:
         db_entry = {
@@ -150,13 +154,21 @@ class EmailThread(BaseModel):
     def __str__(self):
         return f"EmailThread({self.id}, {self.file_path})"
 
-    def save(self):
+    def save(self, target_collection: str = None):
         entry = self.to_db_entry()
-        query_manager.connection[self.db_name][self.collection].update_one(
-            {"_id": ObjectId(self.id)},
-            {"$set": self.to_db_entry()},
-            upsert=True,
-        )
+
+        if target_collection is None:
+            query_manager.connection[self.db_name][self.collection].update_one(
+                {"_id": ObjectId(self.id)},
+                {"$set": self.to_db_entry()},
+                upsert=True,
+            )
+        else:
+            query_manager.connection[self.db_name][target_collection].update_one(
+                {"_id": ObjectId(self.id)},
+                {"$set": self.to_db_entry()},
+                upsert=True,
+            )
 
 
 # Path: data/EmailMessage.py

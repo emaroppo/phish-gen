@@ -1,13 +1,11 @@
 from tqdm import tqdm
 import os
-from common_classes.DataImporter import DataImporter, query_manager
-from data.enron.EnronThread import EnronThread
+from offline_finetuning.common_classes.DataImporter import DataImporter, query_manager
+from offline_finetuning.data.enron.EnronThread import EnronThread
 from offline_finetuning.data.enron.placeholder_dict import placeholder_dict
 
 
 class EnronDataImporter(DataImporter):
-    def __init__(self, data_dir, db_name):
-        super().__init__(data_dir, db_name)
 
     def step1_load_raw_data(self, collection="step1_raw_data"):
         for i in tqdm(os.listdir(self.data_dir)):
@@ -44,44 +42,50 @@ class EnronDataImporter(DataImporter):
 
         # split multipart messages
         for i in tqdm(query_manager.connection[self.db_name]["step2_multipart"].find()):
-            thread = EnronThread.from_db(_id=i["_id"], db_name=self.db_name)
-            thread.split_messages()
-            thread.save()
-
-    def clean_multiparts(self, sample=None):
-
-        if type(sample) == int:
-            multithread_docs = self.retrieve_samples(
-                collection="raw_data_multipart", n=sample
-            )
-        elif sample is None:
-            multithread_docs = query_manager.connection[self.db_name][
-                "raw_data_multipart"
-            ].find()
-
-        for i in tqdm(multithread_docs):
-            thread = EnronThread.from_db(
-                _id=i["_id"], db_name=self.db_name, collection="raw_data_multipart"
-            )
+            thread = EnronThread.deserialize(i, self.db_name, "step2_multipart")
             thread.clean()
+
+        # extract headers from single messages
+        for i in tqdm(query_manager.connection[self.db_name]["step2_single"].find()):
+            thread = EnronThread.deserialize(
+                i, db_name=self.db_name, collection="step2_single"
+            )
+            for j in thread.messages:
+                j.extract_headers_main()
             thread.save()
 
-    def step3_insert_placeholders(self, collections: list, placeholder_dict:dict = placeholder_dict):
+    def step3_insert_placeholders(
+        self,
+        collections: list,
+        placeholder_dict: dict = placeholder_dict,
+        target_collection: str = "step3_placeholders",
+    ):
+        print(placeholder_dict)
         for key, value in placeholder_dict.items():
-            for regex in value[key]["regex"]:
+            for regex in value["regex"]:
                 threads = list()
                 for collection in collections:
-                    threads.extend([ EnronThread.deserialize(thread) for thread in
-                        query_manager.connection[self.db_name][collection].find(
-                            {"messages.body": {"$regex": regex}}
-                        )
-                    ]
+                    threads.extend(
+                        [
+                            EnronThread.deserialize(
+                                thread, db_name=self.db_name, collection=collection
+                            )
+                            for thread in query_manager.connection[self.db_name][
+                                collection
+                            ].find({"messages.body": {"$regex": regex}})
+                        ]
                     )
                 for thread in tqdm(threads):
-                    thread.insert_placeholder(key, value["placeholder"], regex, save=False) #change save to True after testing
+                    thread.insert_placeholder(
+                        key,
+                        value["placeholder"],
+                        regex,
+                        save=True,
+                        target_collection=target_collection,
+                    )
 
     def pipeline(self):
-        self.load_raw_data()
-        self.isolate_multiparts()
-        self.clean_multiparts()
+        self.step1_load_raw_data()
+        self.step2_split_messages()
+
         return
