@@ -119,21 +119,33 @@ class DatasetFactory(BaseModel):
                 continue
 
             for key, value in message["message"]["headers"].items():
-                new_field = f"{key}: {value}"
+                key = key.capitalize()
+                if key == "Sent":
+                    key = "Date"
 
-                labels.append(
-                    [len(entry_str), len(entry_str) + len(new_field), "HEADER_FIELD"]
-                )
-                labels.append([len(entry_str), len(entry_str) + len(key), "HEADER_KEY"])
-                labels.append(
-                    [
-                        len(entry_str) + len(new_field) - len(value),
-                        len(entry_str) + len(new_field),
-                        "HEADER_VALUE",
-                    ]
-                )
+                if key in ["Date", "From", "To", "Subject", "Cc", "Bcc"]:
+                    new_field = f"{key}: {value}"
 
-                entry_str += new_field + "\n"
+                    labels.append(
+                        [
+                            len(entry_str),
+                            len(entry_str) + len(new_field),
+                            "HEADER_FIELD",
+                        ]
+                    )
+                    labels.append(
+                        [len(entry_str), len(entry_str) + len(key), "HEADER_KEY"]
+                    )
+
+                    labels.append(
+                        [
+                            len(entry_str) + len(new_field) - len(value),
+                            len(entry_str) + len(new_field),
+                            "HEADER_VALUE",
+                        ]
+                    )
+
+                    entry_str += new_field + "\n"
             labels.append([0, len(entry_str), "HEADER"])
             entry_str += "\n" + message["message"]["body"]
 
