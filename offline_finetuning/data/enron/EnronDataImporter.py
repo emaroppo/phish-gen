@@ -1,8 +1,10 @@
 from tqdm import tqdm
 import os
 from offline_finetuning.common_classes.DataImporter import DataImporter, query_manager
+from bson import ObjectId
 from offline_finetuning.data.enron.EnronThread import EnronThread
 from offline_finetuning.data.enron.placeholder_dict import placeholder_dict
+from offline_finetuning.data.enron.disclaimers_collection import disclaimers_collection
 
 
 class EnronDataImporter(DataImporter):
@@ -54,6 +56,37 @@ class EnronDataImporter(DataImporter):
                 j.extract_headers_main()
             thread.save()
 
+    def step2_5_clean_messages(self):
+        # extract disclaimers
+        collections = ("step2_single", "step2_forwarded", "step2_multipart")
+        for collection in collections:
+            for disclaimer in tqdm(disclaimers_collection):
+                threads = [
+                    EnronThread.deserialize(thread, self.db_name, collection)
+                    for thread in query_manager.connection[self.db_name][
+                        collection
+                    ].find(
+                        {
+                            "messages.body": {
+                                "$regex": disclaimer,
+                            }
+                        }
+                    )
+                ]
+                for thread in threads:
+                    thread.extract_disclaimers(disclaimer, save=True)
+
+            # get rid of leading and trailing white spaces
+
+            threads = [
+                EnronThread.deserialize(thread, self.db_name, collection)
+                for thread in query_manager.connection[self.db_name][collection].find()
+            ]
+            for thread in threads:
+                for message in thread.messages:
+                    message.body = message.body.strip()
+                thread.save()
+
     def step3_insert_placeholders(
         self,
         collections: list,
@@ -84,8 +117,18 @@ class EnronDataImporter(DataImporter):
                         target_collection=target_collection,
                     )
 
+                    # remove the original messages
+                    for collection in collections:
+                        query_manager.connection[self.db_name][collection].delete_many(
+                            {"_id": ObjectId(thread.id)}
+                        )
+
     def pipeline(self):
         self.step1_load_raw_data()
         self.step2_split_messages()
+        self.step2_5_clean_messages()
+        self.step3_insert_placeholders(
+            collections=["step2_single", "step2_forwarded", "step2_multipart"]
+        )
 
         return

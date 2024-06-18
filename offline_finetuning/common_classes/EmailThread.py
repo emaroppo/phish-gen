@@ -2,7 +2,7 @@ from offline_finetuning.common_classes.QueryManager import query_manager
 from bson import ObjectId
 from offline_finetuning.common_classes.EmailMessage import EmailMessage
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, model_validator, Field
+from pydantic import BaseModel
 
 
 class ThreadEntry(BaseModel):
@@ -128,6 +128,13 @@ class EmailThread(BaseModel):
         )
         self.messages.append(new_message)
         self.save()
+
+    def extract_disclaimers(self, disclaimer: str, save: bool = True):
+        for i in self.messages:
+            i.extract_disclaimer(disclaimer)
+
+        if save:
+            self.save()
 
     def insert_placeholder(
         self,

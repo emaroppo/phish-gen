@@ -12,6 +12,7 @@ class EmailMessageEntry(BaseModel):
     response: Optional[ObjectId] = None
     forwarded_by: Optional[ObjectId] = None
     special_tokens: Optional[Dict[str, List[str]]] = None
+    disclaimer: Optional[str] = None
 
     class Config:
         arbitrary_types_allowed = True
@@ -25,6 +26,7 @@ class EmailMessage(BaseModel):
     response: Optional[str] = None
     forwarded_by: Optional[str] = None
     special_tokens: Optional[Dict[str, List[str]]] = None
+    disclaimer: Optional[str] = None
 
     @classmethod
     def deserialize(cls, data: Dict[str, Any]):
@@ -60,6 +62,15 @@ class EmailMessage(BaseModel):
 
         return cls(**message_doc)
 
+    def extract_disclaimer(self, disclaimer: str):
+        if re.search(disclaimer, self.body):
+            self.__dict__["disclaimer"] = re.search(disclaimer, self.body).group()
+            print(self.disclaimer)
+            print(re.search(disclaimer, self.body).group())
+            self.body = re.sub(disclaimer, "", self.body)
+
+        return self.body
+
     def insert_placeholder(self, field_name, placeholder: str, regex: str):
         original_values = re.findall(regex, self.body)
         if original_values:
@@ -86,6 +97,9 @@ class EmailMessage(BaseModel):
         }
         if self.special_tokens is not None:
             db_entry["special_tokens"] = self.special_tokens
+
+        if self.disclaimer is not None:
+            db_entry["disclaimer"] = self.disclaimer
         if self.response is not None and self.response != "None":
 
             db_entry["response"] = ObjectId(self.response)
