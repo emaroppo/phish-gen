@@ -1,19 +1,59 @@
-from common_classes.DatasetFactory import DatasetFactory
-from transformers import BertTokenizer
-
-# Define the databases and collections to query
-databases = {
-    "enron_emails": ["raw_data_multipart"],
-}
+from offline_finetuning.data_processing.enron.EnronDataImporter import EnronDataImporter
+from offline_finetuning.common_classes.DatasetFactory import DatasetFactory
+from transformers import AutoTokenizer
+from inference.MessageGenerator import MessageGenerator
 
 
-def main():
-    # Load the dataset
+def run_pipeline(
+    db_name: str = "enron_emails_test4",
+    data_dir: str = "offline_finetuning/data/enron/dataset/maildir",
+):
+
+    enron_data_importer = EnronDataImporter(
+        db_name=db_name,
+        data_dir=data_dir,
+    )
+    enron_data_importer.pipeline()
+
+
+def generate_dataset(
+    databases: dict = {
+        "enron_emails_test4": ["step2_single", "step3_placeholders", "step2_multipart"]
+    }
+):
     dataset_factory = DatasetFactory(databases=databases)
-    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-    dataset = dataset_factory.generate_dataset(
-        tokenizer=tokenizer, save_path="data/datasets/"
+    dataset_factory.generate_doccamo_dataset()
+
+
+def generate_pytorch_dataset(
+    databases: dict = {
+        "enron_emails_test4": ["step2_single", "step3_placeholders", "step2_multipart"]
+    }
+):
+    dataset_factory = DatasetFactory(databases=databases)
+    tokenizer = AutoTokenizer.from_pretrained("gpt2")
+
+    dataset = dataset_factory.generate_torch_dataset(
+        tokenizer=tokenizer,
+        max_length=512,
+        save_path="offline_finetuning/datasets/pytorch/enron/",
     )
 
+    return dataset
 
-main()
+
+def generate_message(
+    base_model_id: str = "gpt2",
+    subject: str = "Outstanding Invoice",
+    attachments: bool = True,
+    urls: bool = False,
+    guided: str = "both",
+):
+    message_generator = MessageGenerator(
+        base_model_id=base_model_id,
+        quantized=None,
+        adapter="offline_finetuning/models/adapter",
+    )
+    message_generator.generate_message(
+        subject=subject, attachments=attachments, urls=urls, guided=guided
+    )
