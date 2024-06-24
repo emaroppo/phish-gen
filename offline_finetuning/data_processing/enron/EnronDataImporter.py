@@ -2,9 +2,16 @@ from tqdm import tqdm
 import os
 from offline_finetuning.common_classes.DataImporter import DataImporter, query_manager
 from bson import ObjectId
-from offline_finetuning.data.enron.EnronThread import EnronThread
-from offline_finetuning.data.enron.placeholder_dict import placeholder_dict
-from offline_finetuning.data.enron.disclaimers_collection import disclaimers_collection
+from offline_finetuning.data_processing.enron.EnronThread import EnronThread
+from offline_finetuning.data_processing.enron.regex.placeholder_dict import (
+    placeholder_dict,
+)
+from offline_finetuning.data_processing.enron.regex.default_footers import (
+    footers_collection,
+)
+from offline_finetuning.data_processing.enron.regex.disclaimers_collection import (
+    disclaimers_collection,
+)
 
 
 class EnronDataImporter(DataImporter):
@@ -76,6 +83,23 @@ class EnronDataImporter(DataImporter):
                 for thread in threads:
                     thread.extract_disclaimers(disclaimer, save=True)
 
+            # get rid of footers
+            for footer in tqdm(footers_collection):
+                threads = [
+                    EnronThread.deserialize(thread, self.db_name, collection)
+                    for thread in query_manager.connection[self.db_name][
+                        collection
+                    ].find(
+                        {
+                            "messages.body": {
+                                "$regex": footer,
+                            }
+                        }
+                    )
+                ]
+                for thread in threads:
+                    thread.remove_footers(footer, save=True)
+
             # get rid of leading and trailing white spaces
 
             threads = [
@@ -85,6 +109,10 @@ class EnronDataImporter(DataImporter):
             for thread in threads:
                 for message in thread.messages:
                     message.body = message.body.strip()
+                    if message.headers:
+                        message.clean_subject()
+                    message.check_html()
+                    message.get_word_count()
                 thread.save()
 
     def step3_insert_placeholders(
@@ -93,7 +121,6 @@ class EnronDataImporter(DataImporter):
         placeholder_dict: dict = placeholder_dict,
         target_collection: str = "step3_placeholders",
     ):
-        print(placeholder_dict)
         for key, value in placeholder_dict.items():
             for regex in value["regex"]:
                 threads = list()
@@ -122,6 +149,24 @@ class EnronDataImporter(DataImporter):
                         query_manager.connection[self.db_name][collection].delete_many(
                             {"_id": ObjectId(thread.id)}
                         )
+
+        for key, value in placeholder_dict.items():
+            for regex in value["regex"]:
+                threads = [
+                    EnronThread.deserialize(
+                        thread, db_name=self.db_name, collection="step3_placeholders"
+                    )
+                    for thread in query_manager.connection[self.db_name][
+                        "step3_placeholders"
+                    ].find({"messages.body": {"$regex": regex}})
+                ]
+                for thread in tqdm(threads):
+                    thread.insert_placeholder(
+                        key,
+                        value["placeholder"],
+                        regex,
+                        save=True,
+                    )
 
     def pipeline(self):
         self.step1_load_raw_data()

@@ -1,7 +1,9 @@
 from pydantic import BaseModel
 from typing import List, Dict
 from offline_finetuning.common_classes.QueryManager import query_manager
-from offline_finetuning.data.enron.placeholder_dict import placeholder_dict
+from offline_finetuning.data_processing.enron.regex.placeholder_dict import (
+    placeholder_dict,
+)
 from transformers import PreTrainedTokenizer
 from datasets import Dataset
 from typing import List
@@ -12,32 +14,53 @@ from tqdm import tqdm
 class DatasetFactory(BaseModel):
     databases: Dict[str, List[str]]  # key: db_name, value: list of collections
 
+    def doc_to_sample(self, doc: dict):
+        prompt = dict()
+        return_value = dict()
+        prompt["SUBJECT"] = doc["headers"]["Subject"]
+        if "special_tokens" in doc:
+            if doc["special_tokens"]:
+                if "urls" in doc["special_tokens"]:
+                    if doc["special_tokens"]["urls"]:
+                        prompt["URLS"] = True
+                if "attachments" in doc["special_tokens"]:
+                    if doc["special_tokens"]["attachments"]:
+                        prompt["ATTACHMENTS"] = True
+
+        return_value["BODY"] = doc["body"]
+        if "special_tokens" in doc:
+            if doc["special_tokens"]:
+                if "attachment" in doc["special_tokens"]:
+                    return_value["ATTACHMENTS"] = doc["special_tokens"]["attachment"]
+                if "url" in doc["special_tokens"]:
+                    return_value["URLS"] = doc["special_tokens"]["url"]
+
+        return prompt, return_value
+
     def generate_torch_dataset(
         self,
         tokenizer: PreTrainedTokenizer,
-        prompt_fields: List[str] = [
-            "headers",
-        ],
-        target_fields: List[str] = [
-            "body",
-        ],
         max_length: int = 512,
         save_path: str = None,
     ):
+        """
+        Target Prompt:
+        {
+        "Subject": str,
+        "Attachments": bool,
+        "URLs": bool,
+        }
+        Target Output:
+        {
+        "body": str,
+        "attachment": Optional[str],
+        "url": Optional[str],
+        }
+        """
 
         dataset = list()
 
-        projection = {
-            "$project": {
-                "_id": 0,  # Assuming you don't want to include the MongoDB ID in the results
-                "prompt_fields": {
-                    field: f"$messages.{field}" for field in prompt_fields
-                },
-                "target_fields": {
-                    field: f"$messages.{field}" for field in target_fields
-                },
-            }
-        }
+        projection = {"$project": {"message": {"$arrayElemAt": ["$messages", -1]}}}
 
         def tokenize_function(examples):
             return tokenizer(
@@ -50,13 +73,37 @@ class DatasetFactory(BaseModel):
         for db_name, collections in self.databases.items():
             for collection in collections:
                 # retrieve data from the database
-                dataset = query_manager.connection[db_name][collection].aggregate(
-                    [projection]
-                )
-                dataset = [str(doc) for doc in dataset]
-                dataset.extend(dataset)
+                threads = [
+                    doc["message"]
+                    for doc in query_manager.connection[db_name][collection].aggregate(
+                        [projection]
+                    )
+                ]
+                for thread in threads:
+                    if (
+                        thread["is_html"]
+                        or thread["word_count"] < 7
+                        or thread["word_count"] > 384
+                    ):
+                        continue
+                    if "headers" not in thread:
+                        continue
+                    if thread["headers"] is None:
+                        continue
+                    prompt, return_value = self.doc_to_sample(thread)
+                    dataset.append(
+                        '{"PROMPT": '
+                        + str(prompt)
+                        + ', "RETURN": '
+                        + str(return_value)
+                        + "}"
+                    )
+
+        print(len(dataset))
 
         dataset = Dataset.from_dict({"text": dataset})
+        # shuffle the dataset
+        dataset = dataset.shuffle()
         if save_path:
             dataset.save_to_disk(save_path)
         dataset = dataset.map(tokenize_function, batched=True)
@@ -133,6 +180,7 @@ class DatasetFactory(BaseModel):
                             "HEADER_FIELD",
                         ]
                     )
+                    """
                     labels.append(
                         [len(entry_str), len(entry_str) + len(key), "HEADER_KEY"]
                     )
@@ -144,9 +192,12 @@ class DatasetFactory(BaseModel):
                             "HEADER_VALUE",
                         ]
                     )
+                    """
 
                     entry_str += new_field + "\n"
+            """
             labels.append([0, len(entry_str), "HEADER"])
+            """
             entry_str += "\n" + message["message"]["body"]
 
             # add placeholder labels

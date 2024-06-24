@@ -1,7 +1,7 @@
 from pydantic import model_validator, Field
 from typing import List, Union, Pattern
 from offline_finetuning.common_classes.EmailThread import EmailThread
-from offline_finetuning.data.enron.EnronMessage import EnronMessage
+from offline_finetuning.data_processing.enron.EnronMessage import EnronMessage
 from offline_finetuning.common_classes.EmailMessage import EmailMessage
 import re
 

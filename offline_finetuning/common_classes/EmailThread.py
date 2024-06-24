@@ -136,6 +136,13 @@ class EmailThread(BaseModel):
         if save:
             self.save()
 
+    def remove_footers(self, footer: str, save: bool = True):
+        for i in self.messages:
+            i.remove_footer(footer)
+
+        if save:
+            self.save()
+
     def insert_placeholder(
         self,
         field_name,

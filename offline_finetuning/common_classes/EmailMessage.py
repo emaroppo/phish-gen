@@ -13,6 +13,8 @@ class EmailMessageEntry(BaseModel):
     forwarded_by: Optional[ObjectId] = None
     special_tokens: Optional[Dict[str, List[str]]] = None
     disclaimer: Optional[str] = None
+    is_html: Optional[bool] = False
+    word_count: Optional[int] = None
 
     class Config:
         arbitrary_types_allowed = True
@@ -27,6 +29,8 @@ class EmailMessage(BaseModel):
     forwarded_by: Optional[str] = None
     special_tokens: Optional[Dict[str, List[str]]] = None
     disclaimer: Optional[str] = None
+    is_html: Optional[bool] = False
+    word_count: Optional[int] = None
 
     @classmethod
     def deserialize(cls, data: Dict[str, Any]):
@@ -62,11 +66,36 @@ class EmailMessage(BaseModel):
 
         return cls(**message_doc)
 
+    def clean_subject(self):
+
+        if "Subject" in self.headers:
+
+            # remove leading and trailing white spaces
+            self.headers["Subject"] = self.headers["Subject"].strip()
+
+            # replace all spaces with a single space
+            self.headers["Subject"] = re.sub(r"\s+", " ", self.headers["Subject"])
+
+            # separate fwd and re from the subject
+            # TO DO: come up with a way to include re and fwd in entry
+            self.headers["Subject"] = re.sub(
+                r"\s*Fwd:\s*", "", self.headers["Subject"], flags=re.IGNORECASE
+            )
+            self.headers["Subject"] = re.sub(
+                r"\s*Re:\s*", "", self.headers["Subject"], flags=re.IGNORECASE
+            )
+
+    def check_html(self):
+        if re.search(r"<html>", self.body, re.IGNORECASE):
+            self.is_html = True
+
+    def get_word_count(self):
+        self.word_count = len(self.body.split())
+        return self.word_count
+
     def extract_disclaimer(self, disclaimer: str):
         if re.search(disclaimer, self.body):
             self.__dict__["disclaimer"] = re.search(disclaimer, self.body).group()
-            print(self.disclaimer)
-            print(re.search(disclaimer, self.body).group())
             self.body = re.sub(disclaimer, "", self.body)
 
         return self.body
@@ -88,6 +117,10 @@ class EmailMessage(BaseModel):
 
         return self.body
 
+    def remove_footer(self, footer: str):
+        self.body = re.sub(footer, "", self.body)
+        return self.body
+
     def to_db_entry(self) -> EmailMessageEntry:
         db_entry = {
             "_id": ObjectId(self.id),
@@ -100,11 +133,19 @@ class EmailMessage(BaseModel):
 
         if self.disclaimer is not None:
             db_entry["disclaimer"] = self.disclaimer
+
         if self.response is not None and self.response != "None":
 
             db_entry["response"] = ObjectId(self.response)
+
         if self.forwarded_by is not None and self.forwarded_by != "None":
             db_entry["forwarded_by"] = ObjectId(self.forwarded_by)
+
+        if self.is_html:
+            db_entry["is_html"] = self.is_html
+
+        if self.word_count is not None:
+            db_entry["word_count"] = self.word_count
 
         return EmailMessageEntry(**db_entry).model_dump(by_alias=True)
 
