@@ -4,7 +4,11 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from peft import PeftModel
 import torch
 import outlines
-from inference.generate_prompt import ReturnValue, generate_prompt, Prompt
+from prompt_generation.generate_prompt import (
+    generate_prompt,
+    OutputMessage,
+    PromptOutputPair,
+)
 
 
 class MessageGenerator(BaseModel):
@@ -51,7 +55,8 @@ class MessageGenerator(BaseModel):
                 raise ValueError(f"Quantization type {self.quantized} is not supported")
 
         if self.adapter:
-            model = PeftModel(model, self.adapter)
+
+            model = PeftModel.from_pretrained(model, self.adapter)
 
         return model
 
@@ -89,7 +94,7 @@ class MessageGenerator(BaseModel):
 
         if guided:
             model = outlines.models.Transformers(self.gen_model, self.tokenizer)
-            generator = outlines.generate.json(model, ReturnValue)
+            generator = outlines.generate.json(model, OutputMessage)
             message = generator([prompt])
             output_text = message
             print(output_text)
