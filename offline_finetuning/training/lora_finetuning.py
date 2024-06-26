@@ -36,6 +36,7 @@ def train_lora(
 
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.add_tokens(["<URL>", "<ATTACHMENT>", "<PHONE>", "<DATE>"])
 
     if quantized is None:
         model = AutoModelForCausalLM.from_pretrained(
@@ -68,7 +69,7 @@ def train_lora(
             quantization_config=bnb_config,
             device_map="auto",
         )
-
+    model.resize_token_embeddings(len(tokenizer))
     data = load_dataset(dataset_path, tokenizer)
 
     # freeze model weights
@@ -95,7 +96,7 @@ def train_lora(
         tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8
     )
     args = TrainingArguments(
-        per_device_train_batch_size=4,
+        per_device_train_batch_size=8,
         gradient_accumulation_steps=2,
         num_train_epochs=2,
         save_steps=200,
