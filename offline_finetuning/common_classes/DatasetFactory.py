@@ -9,33 +9,11 @@ from datasets import Dataset
 from typing import List
 import json
 from tqdm import tqdm
+from prompt_generation.generate_prompt import generate_prompt_output_pair
 
 
 class DatasetFactory(BaseModel):
     databases: Dict[str, List[str]]  # key: db_name, value: list of collections
-
-    def doc_to_sample(self, doc: dict):
-        prompt = dict()
-        return_value = dict()
-        prompt["SUBJECT"] = doc["headers"]["Subject"]
-        if "special_tokens" in doc:
-            if doc["special_tokens"]:
-                if "urls" in doc["special_tokens"]:
-                    if doc["special_tokens"]["urls"]:
-                        prompt["URLS"] = True
-                if "attachments" in doc["special_tokens"]:
-                    if doc["special_tokens"]["attachments"]:
-                        prompt["ATTACHMENTS"] = True
-
-        return_value["BODY"] = doc["body"]
-        if "special_tokens" in doc:
-            if doc["special_tokens"]:
-                if "attachment" in doc["special_tokens"]:
-                    return_value["ATTACHMENTS"] = doc["special_tokens"]["attachment"]
-                if "url" in doc["special_tokens"]:
-                    return_value["URLS"] = doc["special_tokens"]["url"]
-
-        return prompt, return_value
 
     def generate_torch_dataset(
         self,
@@ -43,20 +21,6 @@ class DatasetFactory(BaseModel):
         max_length: int = 512,
         save_path: str = None,
     ):
-        """
-        Target Prompt:
-        {
-        "Subject": str,
-        "Attachments": bool,
-        "URLs": bool,
-        }
-        Target Output:
-        {
-        "body": str,
-        "attachment": Optional[str],
-        "url": Optional[str],
-        }
-        """
 
         dataset = list()
 
@@ -80,6 +44,9 @@ class DatasetFactory(BaseModel):
                     )
                 ]
                 for thread in threads:
+                    attachments = False
+                    urls = False
+
                     if (
                         thread["is_html"]
                         or thread["word_count"] < 7
@@ -90,13 +57,23 @@ class DatasetFactory(BaseModel):
                         continue
                     if thread["headers"] is None:
                         continue
-                    prompt, return_value = self.doc_to_sample(thread)
+
+                    if "special_tokens" in thread:
+                        if thread["special_tokens"] is not None:
+                            if "attachments" in thread["special_tokens"]:
+                                if thread["special_tokens"]["attachments"] is not None:
+                                    attachments = True
+                            if "urls" in thread["special_tokens"]:
+                                if thread["special_tokens"]["urls"] is not None:
+                                    urls = True
+
                     dataset.append(
-                        '{"PROMPT": '
-                        + str(prompt)
-                        + ', "RETURN": '
-                        + str(return_value)
-                        + "}"
+                        generate_prompt_output_pair(
+                            body=thread["body"],
+                            subject=thread["headers"]["Subject"],
+                            attachments=attachments,
+                            urls=urls,
+                        )
                     )
 
         print(len(dataset))
@@ -127,7 +104,11 @@ class DatasetFactory(BaseModel):
                         dataset.append(tokenized_message)
         return dataset
 
-    def generate_doccamo_dataset(self, placeholder_dict: dict = placeholder_dict):
+    def generate_doccamo_dataset(
+        self,
+        placeholder_dict: dict = placeholder_dict,
+        output_path: str = "offline_finetuning/datasets/doccano/enron_dataset.jsonl",
+    ):
 
         messages = list()
 
@@ -238,6 +219,6 @@ class DatasetFactory(BaseModel):
             entry_str += "\nMessage ID: " + str(message["message"]["_id"])
             entries.append({"text": entry_str, "labels": labels})
 
-        with open("doccano_dataset_1.jsonl", "w") as f:
+        with open(output_path, "w+") as f:
             for item in entries:
                 f.write(json.dumps(item) + "\n")
