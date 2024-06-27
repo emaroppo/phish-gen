@@ -29,11 +29,16 @@ def generate_prompt(subject: str, attachments: bool = False, urls: bool = False)
     if attachments:
         prompt["attachments"] = attachments
 
-    return str(prompt)
+    prompt = "\n".join(f"{k}: {v}" for k, v in prompt.items())
+
+    return prompt
 
 
 def generate_target_value(body):
-    return str({"body": body})
+    target_value = {"body": body}
+    target_value = "\n".join(f"{k}: {v}" for k, v in target_value.items())
+
+    return target_value
 
 
 def generate_prompt_output_pair(
@@ -44,4 +49,4 @@ def generate_prompt_output_pair(
 ) -> str:
     prompt = generate_prompt(subject, attachments, urls)
     target_value = generate_target_value(body)
-    return f"{prompt}->{target_value}"
+    return f"{prompt}\n->\n{target_value}"
