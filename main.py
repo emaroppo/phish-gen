@@ -6,7 +6,7 @@ from inference.MessageGenerator import MessageGenerator
 
 def run_pipeline(
     db_name: str = "enron_emails_test4",
-    data_dir: str = "offline_finetuning/data/enron/dataset/maildir",
+    data_dir: str = "offline_finetuning/data_processing/enron/dataset/maildir",
 ):
 
     enron_data_importer = EnronDataImporter(
@@ -16,7 +16,7 @@ def run_pipeline(
     enron_data_importer.pipeline()
 
 
-def generate_dataset(
+def generate_doccamo_dataset(
     databases: dict = {
         "enron_emails_test4": ["step2_single", "step3_placeholders", "step2_multipart"]
     }
@@ -28,10 +28,14 @@ def generate_dataset(
 def generate_pytorch_dataset(
     databases: dict = {
         "enron_emails_test4": ["step2_single", "step3_placeholders", "step2_multipart"]
-    }
+    },
+    from_files: bool = False,
 ):
+    if from_files:
+        run_pipeline()
     dataset_factory = DatasetFactory(databases=databases)
     tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    tokenizer.pad_token = tokenizer.eos_token
 
     dataset = dataset_factory.generate_torch_dataset(
         tokenizer=tokenizer,
@@ -52,8 +56,11 @@ def generate_message(
     message_generator = MessageGenerator(
         base_model_id=base_model_id,
         quantized=None,
-        adapter="offline_finetuning/models/adapter",
+        adapter="offline_finetuning/models/gpt2/",
     )
     message_generator.generate_message(
         subject=subject, attachments=attachments, urls=urls, guided=guided
     )
+
+
+generate_pytorch_dataset(from_files=True)
