@@ -32,11 +32,13 @@ def train_lora(
     model_id: str,
     quantized: Union[Literal["4bit", "8bit"], None] = None,
     output_dir: str = "offline_finetuning/models/{model_id}",
+    custom_tokens: list = ["<URL>", "<ATTACHMENT>", "<PHONE>", "<DATE>"],
 ):
 
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.add_tokens(["<URL>", "<ATTACHMENT>", "<PHONE>", "<DATE>"])
+    if custom_tokens:
+        tokenizer.add_tokens(["<URL>", "<ATTACHMENT>", "<PHONE>", "<DATE>"])
 
     if quantized is None:
         model = AutoModelForCausalLM.from_pretrained(
@@ -69,7 +71,8 @@ def train_lora(
             quantization_config=bnb_config,
             device_map="auto",
         )
-    model.resize_token_embeddings(len(tokenizer))
+    if custom_tokens:
+        model.resize_token_embeddings(len(tokenizer))
     data = load_dataset(dataset_path, tokenizer)
 
     # freeze model weights
@@ -98,7 +101,7 @@ def train_lora(
     args = TrainingArguments(
         per_device_train_batch_size=8,
         gradient_accumulation_steps=2,
-        num_train_epochs=2,
+        num_train_epochs=10,
         save_steps=200,
         learning_rate=2e-4,
         fp16=True,
