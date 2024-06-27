@@ -83,7 +83,6 @@ class DatasetFactory(BaseModel):
         dataset = dataset.shuffle()
         if save_path:
             dataset.save_to_disk(save_path)
-        dataset = dataset.map(tokenize_function, batched=True)
         return dataset
 
     def generate_dataset_for_labelling(
