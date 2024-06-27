@@ -17,6 +17,14 @@ class MessageGenerator(BaseModel):
     adapter: Optional[str] = None
 
     @computed_field
+    def tokenizer(self) -> Any:
+        tokenizer = AutoTokenizer.from_pretrained(self.base_model_id)
+        tokenizer.pad_token = tokenizer.eos_token
+        tokenizer.add_tokens(["<ATTACHMENT>", "<URL>", "<PHONE>", "<DATE>"])
+
+        return tokenizer
+
+    @computed_field
     def gen_model(self) -> Any:
 
         # Assuming load_model is a function that loads a model and tokenizer based on the given parameters
@@ -54,15 +62,13 @@ class MessageGenerator(BaseModel):
             else:
                 raise ValueError(f"Quantization type {self.quantized} is not supported")
 
+        model.resize_token_embeddings(len(self.tokenizer))
+
         if self.adapter:
 
             model = PeftModel.from_pretrained(model, self.adapter)
 
         return model
-
-    @computed_field
-    def tokenizer(self) -> Any:
-        return AutoTokenizer.from_pretrained(self.base_model_id)
 
     def generate_message(
         self,
@@ -82,11 +88,13 @@ class MessageGenerator(BaseModel):
 
             output_ids = self.gen_model.generate(
                 input_ids,
-                max_length=128,
+                max_length=192,
                 num_return_sequences=1,
                 top_k=50,
                 top_p=0.95,
                 attention_mask=attention_mask,
+                do_sample=True,
+                temperature=0.5,
             )
 
             output_text = self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
