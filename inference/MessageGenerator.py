@@ -20,7 +20,7 @@ class MessageGenerator(BaseModel):
     def tokenizer(self) -> Any:
         tokenizer = AutoTokenizer.from_pretrained(self.base_model_id)
         tokenizer.pad_token = tokenizer.eos_token
-        tokenizer.add_tokens(["<ATTACHMENT>", "<URL>", "<PHONE>", "<DATE>"])
+        tokenizer.add_tokens(["<URL>", "<ATTACHMENT>", "<PHONE>", "<DATE>"])
 
         return tokenizer
 
@@ -39,7 +39,7 @@ class MessageGenerator(BaseModel):
                 bnb_config = BitsAndBytesConfig(
                     load_in_4bit=True,
                     bnb_4bit_quant_type="nf4",
-                    bnb_4bit_compute_dtype=torch.float32,
+                    bnb_4bit_compute_dtype=torch.float16,
                     selective_precision={"critical_layers": "8bit"},
                 )
 
@@ -51,7 +51,7 @@ class MessageGenerator(BaseModel):
                 bnb_config = BitsAndBytesConfig(
                     load_in_8bit=True,
                     bnb_8bit_quant_type="nf8",
-                    bnb_8bit_compute_dtype=torch.float32,
+                    bnb_8bit_compute_dtype=torch.float16,
                     selective_precision={"critical_layers": "8bit"},
                 )
 
