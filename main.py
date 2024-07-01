@@ -47,20 +47,20 @@ def generate_pytorch_dataset(
 
 
 def generate_message(
-    base_model_id: str = "gpt2",
-    subject: str = "Outstanding Invoice",
-    attachments: bool = True,
-    urls: bool = False,
-    guided: str = "both",
+    base_model_id: str = "google/gemma-2b",
+    subject: str = "Budget Review Meeting",
+    attachments: bool = False,
+    urls: bool = True,
+    guided: str = False,
 ):
     message_generator = MessageGenerator(
         base_model_id=base_model_id,
-        quantized=None,
-        adapter="offline_finetuning/models/gpt2/",
+        quantized="4bit",
+        adapter=f"offline_finetuning/models/gemma-2b/checkpoint-8000",
     )
     message_generator.generate_message(
         subject=subject, attachments=attachments, urls=urls, guided=guided
     )
 
 
-generate_pytorch_dataset(from_files=True)
+generate_message()
