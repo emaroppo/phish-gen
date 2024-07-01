@@ -38,7 +38,7 @@ def train_lora(
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     tokenizer.pad_token = tokenizer.eos_token
     if custom_tokens:
-        tokenizer.add_tokens(["<URL>", "<ATTACHMENT>", "<PHONE>", "<DATE>"])
+        tokenizer.add_tokens(custom_tokens)
 
     if quantized is None:
         model = AutoModelForCausalLM.from_pretrained(
@@ -51,7 +51,7 @@ def train_lora(
             bnb_config = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=torch.float32,
+                bnb_4bit_compute_dtype=torch.float16,
                 selective_precision={"critical_layers": "8bit"},
             )
 
@@ -99,9 +99,9 @@ def train_lora(
         tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8
     )
     args = TrainingArguments(
-        per_device_train_batch_size=8,
-        gradient_accumulation_steps=2,
-        num_train_epochs=10,
+        per_device_train_batch_size=4,
+        gradient_accumulation_steps=4,
+        num_train_epochs=5,
         save_steps=200,
         learning_rate=2e-4,
         fp16=True,
@@ -119,7 +119,7 @@ def train_lora(
 
 train_lora(
     dataset_path="offline_finetuning/datasets/pytorch/enron",
-    model_id="gpt2",
-    quantized=None,
-    output_dir="offline_finetuning/models/gpt2",
+    model_id="google/gemma-2b",
+    quantized="4bit",
+    output_dir="offline_finetuning/models/gemma-2b",
 )
