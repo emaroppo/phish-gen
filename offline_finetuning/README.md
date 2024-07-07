@@ -1,5 +1,17 @@
 # Offline Finetuning
-## Overview
-The objective of this module is to produce a model that can generate a phishing email starting from a semi-structured prompt, such as a dictionary or JSON string. To achieve this, we fine-tune a model on a dataset of publicly available emails.
-We store each email thread in a MongoDB collection, and parse the raw strings to extract the body and metadata of each email. We then preprocess the data, replacing URLs, phone numbers, dates, email addresses, attachments and signatures with placeholders. The actual values are stored as new fields of the message entry in the database. 
-The metadata of each message is used to create a semistructured prompt, training the model to associate the email features with the email body.
+Train a model to generate an email from a semi-strucutred prompt describing desired features.
+
+1. **Data Cleaning**:
+    1. Import thread from files, store them in a database as strings
+    2. Split threads into individual messages
+    3. Extract headers from each message
+2. **Data Preprocessing**: 
+    1. Manually extract entities that follow patterns with low variability (e.g. phone numbers, dates, urls, attachments) using regular expressions, returning the value, type and position of the entity detected in the text
+    2. Automatically extract entities with more unpredictable names using a Named Entity Recognition (NER) model
+    3. Perform topic modelling
+    4. Update database entries to include newly extracted features 
+	
+3. **Export**: 
+    1. Retrieve relevant features for each message in the database
+    2. Select and apply a prompt template, constructing a set of prompt-target pairs 
+    3. Save and export the dataset as a PyTorch dataset (as well as other useful formats, e.g. for data validation)
