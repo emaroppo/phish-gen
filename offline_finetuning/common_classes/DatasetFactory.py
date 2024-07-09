@@ -17,22 +17,12 @@ class DatasetFactory(BaseModel):
 
     def generate_torch_dataset(
         self,
-        tokenizer: PreTrainedTokenizer,
-        max_length: int = 512,
         save_path: str = None,
     ):
 
         dataset = list()
 
         projection = {"$project": {"message": {"$arrayElemAt": ["$messages", -1]}}}
-
-        def tokenize_function(examples):
-            return tokenizer(
-                examples["text"],
-                padding="max_length",
-                truncation=True,
-                max_length=max_length,
-            )
 
         for db_name, collections in self.databases.items():
             for collection in collections:
