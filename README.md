@@ -1,5 +1,4 @@
 # Phishing Email Generator
-# Phishing Email Generator
 
 A generator of phishing emails obtained by finetuning a large language model on a publicly available set of emails. It is based around 3 components:
 1. [Offline finetuning](https://github.com/emaroppo/phish-gen/tree/main/offline_finetuning/train): train a model that can generate phishing emails matching the prompt submitted by a user.
