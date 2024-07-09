@@ -15,3 +15,8 @@ Train a model to generate an email from a semi-strucutred prompt describing desi
     1. Retrieve relevant features for each message in the database
     2. Select and apply a prompt template, constructing a set of prompt-target pairs 
     3. Save and export the dataset as a PyTorch dataset (as well as other useful formats, e.g. for data validation)
+
+4. **Model Training**:
+    1. Load the dataset
+    2. Train a (q)Lora model on the dataset
+    3. Save the model and the tokenizer
