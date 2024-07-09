@@ -11,7 +11,8 @@ class EmailMessageEntry(BaseModel):
     body: str
     response: Optional[ObjectId] = None
     forwarded_by: Optional[ObjectId] = None
-    special_tokens: Optional[Dict[str, List[str]]] = None
+    entities: Optional[Dict[str, Dict[str, List]]] = None
+    sentiment: Optional[Dict[str, float]] = None
     disclaimer: Optional[str] = None
     is_html: Optional[bool] = False
     word_count: Optional[int] = None
@@ -27,7 +28,8 @@ class EmailMessage(BaseModel):
     body: str
     response: Optional[str] = None
     forwarded_by: Optional[str] = None
-    special_tokens: Optional[Dict[str, List[str]]] = None
+    entities: Optional[Dict[str, Dict[str, List]]] = None
+    sentiment: Optional[Dict[str, float]] = None
     disclaimer: Optional[str] = None
     is_html: Optional[bool] = False
     word_count: Optional[int] = None
@@ -100,22 +102,58 @@ class EmailMessage(BaseModel):
 
         return self.body
 
-    def insert_placeholder(self, field_name, placeholder: str, regex: str):
-        original_values = re.findall(regex, self.body)
-        if original_values:
-            if (
-                "special_tokens" not in self.__dict__
-                or not self.__dict__["special_tokens"]
-            ):
-                self.__dict__["special_tokens"] = dict()
-            if field_name in self.__dict__["special_tokens"]:  # store original values
-                self.__dict__["special_tokens"][field_name].extend(original_values)
-            else:
-                self.__dict__["special_tokens"][field_name] = original_values
+    def extract_entities(self, placeholder: str, regex: str):
 
-        self.body = re.sub(regex, placeholder, self.body)
+        # find values matching regex, save the value, the start and end indices
+        matches = re.finditer(regex, self.body)
+        extracted_entities = list()
 
-        return self.body
+        for match in matches:
+            value = match.group()
+            label = placeholder
+            start = match.start()
+            end = match.end()
+            extracted_entities.append((start, end, label, value))
+
+        return extracted_entities
+
+    def add_entity(
+        self,
+        entity_type: str,
+        entity_value: str,
+        start: int,
+        end: int,
+        detection_method: str = "manual",
+    ):
+        if self.entities is None:
+            self.entities = dict()
+        if detection_method not in self.entities:
+            self.entities[detection_method] = dict()
+        if entity_type not in self.entities[detection_method]:
+            self.entities[detection_method][entity_type] = list()
+
+        self.entities[detection_method][entity_type].append((entity_value, start, end))
+
+    def add_sentiment(self, sentiment: Dict[str, float]):
+        self.sentiment = sentiment
+
+    def insert_entity_placeholders(
+        self, entity_types: List[str], manual=True, auto=False
+    ):
+        entity_labels = list()
+        for entity_type in entity_types:
+            if manual and entity_type in self.special_tokens["manual"]["entities"]:
+                entity_labels.extend(
+                    self.special_tokens["manual"]["entities"][entity_type]
+                )
+            if auto and entity_type in self.special_tokens["auto"]["entities"]:
+                entity_labels.extend(
+                    self.special_tokens["auto"]["entities"][entity_type]
+                )
+
+        entity_labels.sort(key=lambda x: x[2], reverse=True)
+        for label in entity_labels:
+            self.body = self.body[: label[2]] + f"<{label[0]}>" + self.body[label[3] :]
 
     def remove_footer(self, footer: str):
         self.body = re.sub(footer, "", self.body)
@@ -128,8 +166,11 @@ class EmailMessage(BaseModel):
             "headers": self.headers,
             "body": self.body,
         }
-        if self.special_tokens is not None:
-            db_entry["special_tokens"] = self.special_tokens
+        if self.entities is not None:
+            db_entry["entities"] = self.entities
+
+        if self.sentiment is not None:
+            db_entry["sentiment"] = self.sentiment
 
         if self.disclaimer is not None:
             db_entry["disclaimer"] = self.disclaimer

@@ -13,6 +13,12 @@ from offline_finetuning.data_processing.enron.regex.disclaimers_collection impor
     disclaimers_collection,
 )
 
+from offline_finetuning.auto_labelling.NERMessageLabeller import NERMessageLabeller
+from offline_finetuning.auto_labelling.topic_modelling.TopicModelling import (
+    TopicModelling,
+)
+from offline_finetuning.auto_labelling.MessageLabeller import MessageLabeller
+
 
 class EnronDataImporter(DataImporter):
 
@@ -115,6 +121,99 @@ class EnronDataImporter(DataImporter):
                     message.get_word_count()
                 thread.save()
 
+    def step3_label_messages(
+        self,
+        collections: list,
+        placeholder_dict: dict,
+        target_collection: str = "step3_placeholders",
+    ):
+
+        # Named Entity Recognition
+
+        # Manually Extract Entities
+
+        for key, value in placeholder_dict.items():
+            for regex in value["regex"]:
+                threads = list()
+                for collection in collections:
+                    threads.extend(
+                        [
+                            EnronThread.deserialize(
+                                thread, db_name=self.db_name, collection=collection
+                            )
+                            for thread in query_manager.connection[self.db_name][
+                                collection
+                            ].find({"messages.body": {"$regex": regex}})
+                        ]
+                    )
+                for thread in tqdm(threads):
+                    for message in thread.messages:
+                        extracted_entities = message.extract_entities(
+                            value["placeholder"],
+                            regex,
+                        )
+                        for entity in extracted_entities:
+                            start, end, label, entity_value = entity
+                            message.add_entity(
+                                start=start,
+                                end=end,
+                                entity_value=entity_value,
+                                entity_type=label,
+                                detection_method="manual",
+                            )
+                    thread.save(target_collection=target_collection)
+
+        message_labeller = NERMessageLabeller(
+            classifier_id="dslim/bert-large-NER",
+            task="ner",
+        )
+        for collection in collections:
+            threads = [
+                EnronThread.deserialize(
+                    thread, db_name=self.db_name, collection=collection
+                )
+                for thread in query_manager.connection[self.db_name][collection].find()
+            ]
+            for thread in tqdm(threads):
+                for message in thread.messages:
+                    extracted_entities = message_labeller.label_message(message.body)
+
+                    if extracted_entities:
+                        for entity in extracted_entities:
+
+                            start, end, label = entity
+                            entity_value = message.body[start:end]
+                            message.add_entity(
+                                entity_type=label,
+                                start=start,
+                                end=end,
+                                entity_value=entity_value,
+                                detection_method="auto",
+                            )
+                thread.save(target_collection=target_collection)
+
+        # Sentiment Analysis
+
+        message_labeller = MessageLabeller(
+            classifier_id="michellejieli/emotion_text_classifier", task="sentiment"
+        )
+        for collection in collections:
+            threads = [
+                EnronThread.deserialize(
+                    thread, db_name=self.db_name, collection=collection
+                )
+                for thread in query_manager.connection[self.db_name][collection].find()
+            ]
+            for thread in tqdm(threads):
+                for message in thread.messages:
+                    sentiment = message_labeller.label_message(message.body)
+                    message.add_sentiment(sentiment)
+                thread.save(target_collection=target_collection)
+
+        # perform topic modeling on the messages
+
+        return
+
     def step3_insert_placeholders(
         self,
         collections: list,
@@ -136,7 +235,7 @@ class EnronDataImporter(DataImporter):
                         ]
                     )
                 for thread in tqdm(threads):
-                    thread.insert_placeholder(
+                    thread.extract_entities(
                         key,
                         value["placeholder"],
                         regex,
@@ -169,11 +268,13 @@ class EnronDataImporter(DataImporter):
                     )
 
     def pipeline(self):
-        self.step1_load_raw_data()
-        self.step2_split_messages()
-        self.step2_5_clean_messages()
-        self.step3_insert_placeholders(
-            collections=["step2_single", "step2_forwarded", "step2_multipart"]
+        # self.step1_load_raw_data()
+        # self.step2_split_messages()
+        # self.step2_5_clean_messages()
+        self.step3_label_messages(
+            ["step2_single", "step2_forwarded", "step2_multipart"],
+            placeholder_dict=placeholder_dict,
+            target_collection="step3_placeholders",
         )
 
         return

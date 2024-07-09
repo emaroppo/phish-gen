@@ -143,7 +143,8 @@ class EmailThread(BaseModel):
         if save:
             self.save()
 
-    def insert_placeholder(
+    # update function
+    def extract_entities(
         self,
         field_name,
         placeholder: str,
@@ -152,7 +153,8 @@ class EmailThread(BaseModel):
         target_collection: str = None,
     ):
         for i in self.messages:
-            i.insert_placeholder(field_name, placeholder, regex_list)
+            for j in regex_list:
+                i.extract_entities(field_name, placeholder, j)
 
         if save:
             self.save(target_collection=target_collection)
