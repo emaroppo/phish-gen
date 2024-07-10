@@ -1,6 +1,6 @@
 from bson import ObjectId
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 import re
 
 
@@ -12,7 +12,7 @@ class EmailMessageEntry(BaseModel):
     response: Optional[ObjectId] = None
     forwarded_by: Optional[ObjectId] = None
     entities: Optional[Dict[str, Dict[str, List]]] = None
-    sentiment: Optional[Dict[str, float]] = None
+    sentiment: Optional[List[Dict[str, Union[float, str]]]] = None
     disclaimer: Optional[str] = None
     is_html: Optional[bool] = False
     word_count: Optional[int] = None
@@ -29,7 +29,7 @@ class EmailMessage(BaseModel):
     response: Optional[str] = None
     forwarded_by: Optional[str] = None
     entities: Optional[Dict[str, Dict[str, List]]] = None
-    sentiment: Optional[Dict[str, float]] = None
+    sentiment: Optional[List[Dict[str, Union[float, str]]]] = None
     disclaimer: Optional[str] = None
     is_html: Optional[bool] = False
     word_count: Optional[int] = None

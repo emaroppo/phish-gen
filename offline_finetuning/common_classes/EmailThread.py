@@ -143,21 +143,59 @@ class EmailThread(BaseModel):
         if save:
             self.save()
 
-    # update function
     def extract_entities(
         self,
-        field_name,
-        placeholder: str,
-        regex_list: str,
-        save: bool = True,
-        target_collection: str = None,
+        placeholder: str = None,
+        regex: str = None,
+        message_labeller: Any = None,
+        detection_mode: str = "manual",
+        save=True,
     ):
-        for i in self.messages:
-            for j in regex_list:
-                i.extract_entities(field_name, placeholder, j)
+        if detection_mode == "manual":
+            if not placeholder or not regex:
+                raise ValueError(
+                    "Placeholder and regex must be provided for manual entity extraction"
+                )
+            for message in self.messages:
+                extracted_entities = message.extract_entities(
+                    placeholder,
+                    regex,
+                )
+                for entity in extracted_entities:
+                    start, end, label, entity_value = entity
+                    message.add_entity(
+                        start=start,
+                        end=end,
+                        entity_value=entity_value,
+                        entity_type=label,
+                        detection_method=detection_mode,
+                    )
+
+        elif detection_mode == "auto":
+            for message in self.messages:
+                extracted_entities = message_labeller.label_message(message.body)
+                if extracted_entities:
+                    for entity in extracted_entities:
+                        start, end, label = entity
+                        entity_value = message.body[start:end]
+                        message.add_entity(
+                            entity_type=label,
+                            start=start,
+                            end=end,
+                            entity_value=entity_value,
+                            detection_method=detection_mode,
+                        )
 
         if save:
-            self.save(target_collection=target_collection)
+            self.save()
+
+    def predict_sentiment(self, sentiment_predictor: Any, save=True):
+        for message in self.messages:
+            sentiment = sentiment_predictor.label_message(message.body)
+            message.add_sentiment(sentiment)
+
+        if save:
+            self.save()
 
     def to_db_entry(self) -> ThreadEntry:
         db_entry = {
