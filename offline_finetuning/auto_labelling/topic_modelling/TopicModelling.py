@@ -4,6 +4,7 @@ from pydantic import BaseModel, computed_field
 from typing import Any, List
 from bertopic import BERTopic
 from nltk.corpus import stopwords
+from functools import cached_property
 
 
 class TopicModelling(BaseModel):
@@ -11,6 +12,7 @@ class TopicModelling(BaseModel):
     dataset: List[str] = None
 
     @computed_field
+    @cached_property
     def topic_model(self) -> Any:
         if self.checkpoint_path is not None:
             topic_model = BERTopic.load(self.checkpoint_path)
@@ -21,11 +23,11 @@ class TopicModelling(BaseModel):
                 language="english",
                 calculate_probabilities=False,
                 verbose=True,
-                checkpoint_path=self.checkpoint_path,
             )
             topic_model.fit_transform(self.dataset)
             topic_model.save(
-                "offline_finetuning/auto_labelling/topic_modelling/models/"
+                "offline_finetuning/auto_labelling/topic_modelling/models/topic_model",
+                serialization="safetensors",
             )
         else:
             raise ValueError("No dataset or checkpoint path provided.")
