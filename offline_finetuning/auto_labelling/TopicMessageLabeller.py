@@ -15,7 +15,9 @@ class TopicMessageLabeller(MessageLabeller):
     @computed_field
     @cached_property
     def topic_model(self) -> Any:
-        return TopicModelling.load(self.classifier_id)
+        return TopicModelling(checkpoint_path=self.classifier_id)
 
     def label_message(self, message_body: str):
-        return self.topic_model.predict_topic(message_body)
+        return self.topic_model.topic_model.get_topic(
+            self.topic_model.predict_topic(message_body)[0][0]
+        )
