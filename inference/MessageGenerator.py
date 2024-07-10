@@ -9,6 +9,7 @@ from prompt_generation.generate_prompt import (
     OutputMessage,
     PromptOutputPair,
 )
+from functools import cached_property
 
 
 class MessageGenerator(BaseModel):
@@ -17,6 +18,7 @@ class MessageGenerator(BaseModel):
     adapter: Optional[str] = None
 
     @computed_field
+    @cached_property
     def tokenizer(self) -> Any:
         tokenizer = AutoTokenizer.from_pretrained(self.base_model_id)
         tokenizer.pad_token = tokenizer.eos_token
@@ -25,6 +27,7 @@ class MessageGenerator(BaseModel):
         return tokenizer
 
     @computed_field
+    @cached_property
     def gen_model(self) -> Any:
 
         # Assuming load_model is a function that loads a model and tokenizer based on the given parameters

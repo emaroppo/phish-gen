@@ -1,4 +1,5 @@
 from pydantic import BaseModel, computed_field
+from functools import cached_property
 from typing import Any
 from transformers import pipeline
 import torch
@@ -10,6 +11,7 @@ class MessageLabeller(BaseModel):
     no_top_k: bool = False
 
     @computed_field
+    @cached_property
     def classifier(self) -> Any:
         # TODO: find a way to process the message in batches
         # Check if GPU is available

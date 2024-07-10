@@ -3,19 +3,23 @@ from offline_finetuning.auto_labelling.MessageLabeller import MessageLabeller
 from transformers import AutoModelForTokenClassification, AutoTokenizer, pipeline
 from pydantic import computed_field
 import torch
+from functools import cached_property
 
 
 class NERMessageLabeller(MessageLabeller):
 
     @computed_field
+    @cached_property
     def classifier_model(self) -> Any:
         return AutoModelForTokenClassification.from_pretrained(self.classifier_id)
 
     @computed_field
+    @cached_property
     def tokenizer(self) -> Any:
         return AutoTokenizer.from_pretrained(self.classifier_id)
 
     @computed_field
+    @cached_property
     def classifier(self) -> Any:
         device = 0 if torch.cuda.is_available() else -1
         return pipeline(
