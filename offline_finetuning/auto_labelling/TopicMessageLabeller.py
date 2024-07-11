@@ -11,6 +11,7 @@ class TopicMessageLabeller(MessageLabeller):
     classifier_id: str = (
         "offline_finetuning/auto_labelling/topic_modelling/models/topic_model"
     )
+    task: str = "topic_modelling"
 
     @computed_field
     @cached_property

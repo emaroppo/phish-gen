@@ -15,7 +15,9 @@ class TopicModelling(BaseModel):
     @cached_property
     def topic_model(self) -> Any:
         if self.checkpoint_path is not None:
-            topic_model = BERTopic.load(self.checkpoint_path)
+            topic_model = BERTopic.load(
+                self.checkpoint_path, embedding_model="all-MiniLM-L6-v2"
+            )
         elif self.dataset is not None:
             print("No checkpoint path provided, training new model.")
 
@@ -23,6 +25,7 @@ class TopicModelling(BaseModel):
                 language="english",
                 calculate_probabilities=False,
                 verbose=True,
+                embedding_model="all-MiniLM-L6-v2",
             )
             topic_model.fit_transform(self.dataset)
             topic_model.save(
