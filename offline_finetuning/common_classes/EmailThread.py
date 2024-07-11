@@ -197,6 +197,21 @@ class EmailThread(BaseModel):
         if save:
             self.save()
 
+    def predict_topic(self, topic_predictor: Any, save=True):
+        for message in self.messages:
+            topic = topic_predictor.label_message(message.body)
+            message.add_topic(topic)
+
+        if save:
+            self.save()
+
+    def get_attachments_formats(self, save=False):
+        for message in self.messages:
+            message.get_attachments_formats()
+
+        if save:
+            self.save()
+
     def to_db_entry(self) -> ThreadEntry:
         db_entry = {
             "_id": ObjectId(self.id),

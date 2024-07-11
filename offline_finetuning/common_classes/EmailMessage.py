@@ -13,6 +13,8 @@ class EmailMessageEntry(BaseModel):
     forwarded_by: Optional[ObjectId] = None
     entities: Optional[Dict[str, Dict[str, List]]] = None
     sentiment: Optional[List[Dict[str, Union[float, str]]]] = None
+    topic: Optional[List[List[Union[str, float]]]] = None
+    attachments_format: Optional[List[str]] = None
     disclaimer: Optional[str] = None
     is_html: Optional[bool] = False
     word_count: Optional[int] = None
@@ -30,6 +32,8 @@ class EmailMessage(BaseModel):
     forwarded_by: Optional[str] = None
     entities: Optional[Dict[str, Dict[str, List]]] = None
     sentiment: Optional[List[Dict[str, Union[float, str]]]] = None
+    topic: Optional[List[List[Union[str, float]]]] = None
+    attachments_format: Optional[List[str]] = None
     disclaimer: Optional[str] = None
     is_html: Optional[bool] = False
     word_count: Optional[int] = None
@@ -137,6 +141,9 @@ class EmailMessage(BaseModel):
     def add_sentiment(self, sentiment: Dict[str, float]):
         self.sentiment = sentiment
 
+    def add_topic(self, topic: List[List[Union[str, float]]]):
+        self.topic = topic
+
     def insert_entity_placeholders(
         self, entity_types: List[str], manual=True, auto=False
     ):
@@ -158,6 +165,16 @@ class EmailMessage(BaseModel):
     def remove_footer(self, footer: str):
         self.body = re.sub(footer, "", self.body)
         return self.body
+
+    def get_attachment_format(self):
+        if "ATTACHMENT" in self.entities["manual"]:
+            attachments = [
+                entity[0] for entity in self.entities["manual"]["ATTACHMENT"]
+            ]
+
+            self.attachments_formats = [
+                attachment.split(".")[-1] for attachment in attachments
+            ]
 
     def to_db_entry(self) -> EmailMessageEntry:
         db_entry = {
