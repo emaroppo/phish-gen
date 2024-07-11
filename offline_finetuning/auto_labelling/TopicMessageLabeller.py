@@ -19,6 +19,5 @@ class TopicMessageLabeller(MessageLabeller):
         return TopicModelling(checkpoint_path=self.classifier_id)
 
     def label_message(self, message_body: str):
-        return self.topic_model.topic_model.get_topic(
-            self.topic_model.predict_topic(message_body)[0][0]
-        )
+        label = self.topic_model.predict_topic(message_body)[0][0]
+        return self.topic_model.topic_model.get_topic(label)

@@ -192,6 +192,9 @@ class EmailMessage(BaseModel):
         if self.disclaimer is not None:
             db_entry["disclaimer"] = self.disclaimer
 
+        if self.topic is not None:
+            db_entry["topic"] = self.topic
+
         if self.response is not None and self.response != "None":
 
             db_entry["response"] = ObjectId(self.response)
