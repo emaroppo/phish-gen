@@ -18,14 +18,15 @@ from offline_finetuning.auto_labelling.NERMessageLabeller import NERMessageLabel
 from offline_finetuning.auto_labelling.SentimentMessageLabeller import (
     SentimentMessageLabeller,
 )
+from offline_finetuning.auto_labelling.TopicMessageLabeller import TopicMessageLabeller
 
 
 class EnronDataImporter(DataImporter):
 
     def step1_load_raw_data(self, collection="step1_raw_data"):
-        for i in tqdm(os.listdir(self.data_dir)):
+        for i in tqdm(os.listdir(self.data_dir), desc="Loading raw inboxes"):
             if "inbox" in os.listdir(self.data_dir + "/" + i):
-                for j in tqdm(os.walk(self.data_dir + "/" + i + "/inbox")):
+                for j in os.walk(self.data_dir + "/" + i + "/inbox"):
                     for k in j[2]:
                         with open(j[0] + "/" + k, "r", errors="ignore") as f:
                             text = f.read()
@@ -56,12 +57,18 @@ class EnronDataImporter(DataImporter):
         query_manager.connection[self.db_name]["step2_raw_data"].drop()
 
         # split multipart messages
-        for i in tqdm(query_manager.connection[self.db_name]["step2_multipart"].find()):
+        for i in tqdm(
+            query_manager.connection[self.db_name]["step2_multipart"].find(),
+            desc="Splitting multipart messages",
+        ):
             thread = EnronThread.deserialize(i, self.db_name, "step2_multipart")
             thread.clean()
 
         # extract headers from single messages
-        for i in tqdm(query_manager.connection[self.db_name]["step2_single"].find()):
+        for i in tqdm(
+            query_manager.connection[self.db_name]["step2_single"].find(),
+            desc="Extracting headers",
+        ):
             thread = EnronThread.deserialize(
                 i, db_name=self.db_name, collection="step2_single"
             )
@@ -72,8 +79,10 @@ class EnronDataImporter(DataImporter):
     def step2_5_clean_messages(self):
         # extract disclaimers
         collections = ("step2_single", "step2_forwarded", "step2_multipart")
+
         for collection in collections:
-            for disclaimer in tqdm(disclaimers_collection):
+            print(f"Extracting disclaimers from {collection}...")
+            for disclaimer in disclaimers_collection:
                 threads = [
                     EnronThread.deserialize(thread, self.db_name, collection)
                     for thread in query_manager.connection[self.db_name][
@@ -90,6 +99,7 @@ class EnronDataImporter(DataImporter):
                     thread.extract_disclaimers(disclaimer, save=True)
 
             # get rid of footers
+            print(f"Extracting footers from {collection}...")
             for footer in tqdm(footers_collection):
                 threads = [
                     EnronThread.deserialize(thread, self.db_name, collection)
@@ -107,7 +117,7 @@ class EnronDataImporter(DataImporter):
                     thread.remove_footers(footer, save=True)
 
             # get rid of leading and trailing white spaces
-
+            print("Tidy up bodies...")
             threads = [
                 EnronThread.deserialize(thread, self.db_name, collection)
                 for thread in query_manager.connection[self.db_name][collection].find()
@@ -146,7 +156,7 @@ class EnronDataImporter(DataImporter):
                         ]
                     )
 
-                for thread in tqdm(threads):
+                for thread in tqdm(threads, desc=f"Extracting {key}"):
                     thread.extract_entities(
                         value["placeholder"], regex, detection_mode="manual", save=True
                     )
@@ -162,6 +172,10 @@ class EnronDataImporter(DataImporter):
             no_top_k=True,
         )
 
+        topic_message_labeller = TopicMessageLabeller(
+            classifier_id="offline_finetuning/auto_labelling/topic_modelling/models/topic_model",
+        )
+
         for collection in collections:
             threads = [
                 EnronThread.deserialize(
@@ -170,7 +184,7 @@ class EnronDataImporter(DataImporter):
                 for thread in query_manager.connection[self.db_name][collection].find()
             ]
 
-            for thread in tqdm(threads):
+            for thread in tqdm(threads, desc=f"Generating labels for {collection}"):
 
                 thread.extract_entities(
                     message_labeller=ner_message_labeller,
@@ -182,67 +196,28 @@ class EnronDataImporter(DataImporter):
                     sentiment_predictor=sentiment_message_labeller, save=True
                 )
 
-        # perform topic modeling on the messages
+                thread.predict_topic(topic_predictor=topic_message_labeller, save=True)
+
+        # extract attachment formats
+        print("Extracting attachment formats...")
+        for collection in collections:
+            threads = [
+                EnronThread.deserialize(
+                    thread, db_name=self.db_name, collection=collection
+                )
+                for thread in query_manager.connection[self.db_name][collection].find(
+                    {"messages.entities.manual.ATTACHMENT.0": {"$exists": True}}
+                )
+            ]
+            for thread in tqdm(threads):
+                thread.get_attachments_formats(save=True)
 
         return
 
-    def step3_insert_placeholders(
-        self,
-        collections: list,
-        placeholder_dict: dict = placeholder_dict,
-        target_collection: str = "step3_placeholders",
-    ):
-        for key, value in placeholder_dict.items():
-            for regex in value["regex"]:
-                threads = list()
-                for collection in collections:
-                    threads.extend(
-                        [
-                            EnronThread.deserialize(
-                                thread, db_name=self.db_name, collection=collection
-                            )
-                            for thread in query_manager.connection[self.db_name][
-                                collection
-                            ].find({"messages.body": {"$regex": regex}})
-                        ]
-                    )
-                for thread in tqdm(threads):
-                    thread.extract_entities(
-                        key,
-                        value["placeholder"],
-                        regex,
-                        save=True,
-                        target_collection=target_collection,
-                    )
-
-                    # remove the original messages
-                    for collection in collections:
-                        query_manager.connection[self.db_name][collection].delete_many(
-                            {"_id": ObjectId(thread.id)}
-                        )
-
-        for key, value in placeholder_dict.items():
-            for regex in value["regex"]:
-                threads = [
-                    EnronThread.deserialize(
-                        thread, db_name=self.db_name, collection="step3_placeholders"
-                    )
-                    for thread in query_manager.connection[self.db_name][
-                        "step3_placeholders"
-                    ].find({"messages.body": {"$regex": regex}})
-                ]
-                for thread in tqdm(threads):
-                    thread.insert_placeholder(
-                        key,
-                        value["placeholder"],
-                        regex,
-                        save=True,
-                    )
-
     def pipeline(self):
-        # self.step1_load_raw_data()
-        # self.step2_split_messages()
-        # self.step2_5_clean_messages()
+        self.step1_load_raw_data()
+        self.step2_split_messages()
+        self.step2_5_clean_messages()
         self.step3_label_messages(
             ["step2_single", "step2_forwarded", "step2_multipart"],
             placeholder_dict=placeholder_dict,
