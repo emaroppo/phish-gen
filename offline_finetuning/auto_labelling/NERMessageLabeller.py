@@ -1,6 +1,7 @@
 from typing import Any
 from offline_finetuning.auto_labelling.MessageLabeller import MessageLabeller
 from transformers import AutoModelForTokenClassification, AutoTokenizer, pipeline
+from offline_finetuning.common_classes.QueryManager import query_manager
 from pydantic import computed_field
 import torch
 from functools import cached_property
@@ -51,3 +52,48 @@ class NERMessageLabeller(MessageLabeller):
                     word_label = label["entity"].split("-")[1]
 
             return words
+
+    def generate_validation_excel(
+        self,
+        collections=["step2_single", "step2_multipart", "step2_forwarded"],
+        file_path="offline_finetuning/auto_labelling/validation",
+    ):
+        people_set = set()
+        org_set = set()
+        location_set = set()
+        misc_set = set()
+
+        for i in collections:
+            collection = query_manager.connection["enron_emails"][i]
+            # retrieve a list of all entities
+            threads = collection.find({"messages.entities.auto": {"$exists": True}})
+
+            for thread in threads:
+                for message in thread["messages"]:
+                    if "PER" in message["entities"]["auto"]:
+                        people = set(
+                            [person[0] for person in message["entities"]["auto"]["PER"]]
+                        )
+                        people_set.update(people)
+                    if "ORG" in message["entities"]["auto"]:
+                        organizations = [
+                            org[0] for org in message["entities"]["auto"]["ORG"]
+                        ]
+                        org_set.update(organizations)
+                    if "LOC" in message["entities"]["auto"]:
+                        locations = [
+                            loc[0] for loc in message["entities"]["auto"]["LOC"]
+                        ]
+                        location_set.update(locations)
+                    if "MISC" in message["entities"]["auto"]:
+                        miscs = [
+                            misc[0] for misc in message["entities"]["auto"]["MISC"]
+                        ]
+                        misc_set.update(miscs)
+
+        super().generate_validation_excel(people_set, f"{file_path}/people.xlsx")
+        super().generate_validation_excel(org_set, f"{file_path}/organizations.xlsx")
+        super().generate_validation_excel(location_set, f"{file_path}/locations.xlsx")
+        super().generate_validation_excel(misc_set, f"{file_path}/misc.xlsx")
+
+        return people_set, org_set, location_set, misc_set
