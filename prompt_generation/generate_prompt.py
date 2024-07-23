@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Union
 
 
 # TODO: check whether attachments and URLS fields are always present in datataset
@@ -21,13 +21,31 @@ class PromptOutputPair(BaseModel):
     output_message: OutputMessage
 
 
-def generate_prompt(subject: str, attachments: bool = False, urls: bool = False) -> str:
+def get_sentiment(
+    sentiment: List[Dict[str, Union[str, int, float]]], max_sentiment: int = 2
+) -> List[int]:
+    extracted_sentiment = [
+        i["label"] for i in sentiment if i["score"] > 1 / (max_sentiment + 1)
+    ]
+
+    return extracted_sentiment
+
+
+def generate_prompt(
+    subject: str, attachments: bool = False, urls: bool = False, sentiment=None
+) -> str:
     prompt = dict()
     prompt["subject"] = subject
     if urls:
         prompt["urls"] = urls
     if attachments:
         prompt["attachments"] = attachments
+
+    if sentiment:
+        if type(sentiment[0]) == dict:
+            sentiment = get_sentiment(sentiment)
+        sentiment = ", ".join(sentiment)
+        prompt["sentiment"] = sentiment
 
     prompt = "\n".join(f"{k}: {v}" for k, v in prompt.items())
 
@@ -46,7 +64,8 @@ def generate_prompt_output_pair(
     subject: str,
     attachments: bool = False,
     urls: bool = False,
+    sentiment=Union[List[str], List[Dict[str, Union[str, int, float]]]],
 ) -> str:
-    prompt = generate_prompt(subject, attachments, urls)
+    prompt = generate_prompt(subject, attachments, urls, sentiment=sentiment)
     target_value = generate_target_value(body)
     return f"{prompt}\n->\n{target_value}"

@@ -76,12 +76,18 @@ class MessageGenerator(BaseModel):
     def generate_message(
         self,
         subject: str,
-        attachments: bool,
+        attachments: Optional[bool],
+        sentiment: Optional[list],
         urls: Optional[bool],
         guided: Union[Literal["both"], bool] = False,
     ):
 
-        prompt = generate_prompt(subject, attachments, urls)
+        prompt = (
+            generate_prompt(
+                subject=subject, attachments=attachments, urls=urls, sentiment=sentiment
+            )
+            + "\n->\n"
+        )
 
         if guided == "both" or not guided:
             input_ids = self.tokenizer(prompt, return_tensors="pt")["input_ids"].to(
@@ -101,7 +107,7 @@ class MessageGenerator(BaseModel):
             )
 
             output_text = self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
-            print(output_text)
+            return output_text
 
         if guided:
             model = outlines.models.Transformers(self.gen_model, self.tokenizer)
