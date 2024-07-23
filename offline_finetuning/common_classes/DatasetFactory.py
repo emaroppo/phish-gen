@@ -12,6 +12,44 @@ from tqdm import tqdm
 from prompt_generation.generate_prompt import generate_prompt_output_pair
 
 
+def insert_entity_placeholders(
+    thread,
+    entity_types: List[str] = [
+        "URL",
+        "ATTACHMENT",
+        "PHONE",
+        "DATE",
+        "PER",
+        "ORG",
+        "EMAIL",
+    ],
+    manual=True,
+    auto=False,
+):
+    entity_labels = list()
+    for entity_type in entity_types:
+        if manual and entity_type in thread["entities"]["manual"]:
+            entity_labels.extend(
+                [
+                    (label, entity_type)
+                    for label in thread["entities"]["manual"][entity_type]
+                ]
+            )
+        if auto and entity_type in thread["entities"]["auto"]:
+            entity_labels.extend(
+                [
+                    (label, entity_type)
+                    for label in thread["entities"]["auto"][entity_type]
+                ]
+            )
+
+    entity_labels.sort(key=lambda x: x[0][2], reverse=True)
+    body = thread["body"]
+    for label in entity_labels:
+        body = body[: label[0][1]] + f"<{label[1]}>" + body[label[0][2] :]
+    return body
+
+
 class DatasetFactory(BaseModel):
     databases: Dict[str, List[str]]  # key: db_name, value: list of collections
 
@@ -48,14 +86,39 @@ class DatasetFactory(BaseModel):
                     if thread["headers"] is None:
                         continue
 
-                    if "special_tokens" in thread:
-                        if thread["special_tokens"] is not None:
-                            if "attachments" in thread["special_tokens"]:
-                                if thread["special_tokens"]["attachments"] is not None:
+                    if "entities" in thread:
+                        if (
+                            thread["entities"] is not None
+                            and "manual" in thread["entities"]
+                        ):
+                            if "ATTACHMENT" in thread["entities"]["manual"]:
+                                # skip the thread if the attachments_formats contains anything other than pdf, doc, docx, xls, xlsx, ppt, pptx
+                                if thread["attachments_format"] and not all(
+                                    [
+                                        attachment
+                                        in [
+                                            "pdf",
+                                            "doc",
+                                            "docx",
+                                            "xls",
+                                            "xlsx",
+                                            "ppt",
+                                            "pptx",
+                                        ]
+                                        for attachment in thread["attachments_format"]
+                                    ]
+                                ):
+                                    continue
+                                if (
+                                    thread["entities"]["manual"]["ATTACHMENT"]
+                                    is not None
+                                ):
                                     attachments = True
-                            if "urls" in thread["special_tokens"]:
-                                if thread["special_tokens"]["urls"] is not None:
+                            if "URL" in thread["entities"]["manual"]:
+                                if thread["entities"]["manual"]["URL"] is not None:
                                     urls = True
+
+                            thread["body"] = insert_entity_placeholders(thread)
 
                     dataset.append(
                         generate_prompt_output_pair(
@@ -63,10 +126,9 @@ class DatasetFactory(BaseModel):
                             subject=thread["headers"]["Subject"],
                             attachments=attachments,
                             urls=urls,
+                            sentiment=thread["sentiment"],
                         )
                     )
-
-        print(len(dataset))
 
         dataset = Dataset.from_dict({"text": dataset})
         # shuffle the dataset
