@@ -1,5 +1,6 @@
 from tqdm import tqdm
 import os
+import json
 from offline_finetuning.common_classes.DataImporter import DataImporter, query_manager
 from bson import ObjectId
 from offline_finetuning.data_processing.enron.EnronThread import EnronThread
@@ -136,12 +137,34 @@ class EnronDataImporter(DataImporter):
         self,
         collections: list,
         placeholder_dict: dict,
+        validated_entities_dict: dict = None,
     ):
 
         # Named Entity Recognition
 
         # Manually Extract Entities
+        # TODO: move manual entity extraction to NERMessageLabeller class
         for key, value in placeholder_dict.items():
+            for regex in value["regex"]:
+                threads = list()
+                for collection in collections:
+                    threads.extend(
+                        [
+                            EnronThread.deserialize(
+                                thread, db_name=self.db_name, collection=collection
+                            )
+                            for thread in query_manager.connection[self.db_name][
+                                collection
+                            ].find({"messages.body": {"$regex": regex}})
+                        ]
+                    )
+
+                for thread in tqdm(threads, desc=f"Extracting {key}"):
+                    thread.extract_entities(
+                        value["placeholder"], regex, detection_mode="manual", save=True
+                    )
+
+        for key, value in validated_entities_dict.items():
             for regex in value["regex"]:
                 threads = list()
                 for collection in collections:
@@ -172,9 +195,11 @@ class EnronDataImporter(DataImporter):
             no_top_k=True,
         )
 
+        """
         topic_message_labeller = TopicMessageLabeller(
             classifier_id="offline_finetuning/auto_labelling/topic_modelling/models/topic_model",
         )
+        """
 
         for collection in collections:
             threads = [
@@ -196,7 +221,7 @@ class EnronDataImporter(DataImporter):
                     sentiment_predictor=sentiment_message_labeller, save=True
                 )
 
-                thread.predict_topic(topic_predictor=topic_message_labeller, save=True)
+                # thread.predict_topic(topic_predictor=topic_message_labeller, save=True)
 
         # extract attachment formats
         print("Extracting attachment formats...")
@@ -218,9 +243,16 @@ class EnronDataImporter(DataImporter):
         self.step1_load_raw_data()
         self.step2_split_messages()
         self.step2_5_clean_messages()
+
+        with open(
+            "offline_finetuning/data_processing/enron/regex/entities_reg.json", "r"
+        ) as f:
+            validated_entities_dict = json.load(f)
+
         self.step3_label_messages(
             ["step2_single", "step2_forwarded", "step2_multipart"],
             placeholder_dict=placeholder_dict,
+            validated_entities_dict=validated_entities_dict,
         )
 
         return
