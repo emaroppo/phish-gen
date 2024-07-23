@@ -212,6 +212,12 @@ class EmailThread(BaseModel):
         if save:
             self.save()
 
+    def remove_overlapping_labels(self):
+        for message in self.messages:
+            message.remove_overlapping_labels()
+
+        self.save()
+
     def to_db_entry(self) -> ThreadEntry:
         db_entry = {
             "_id": ObjectId(self.id),

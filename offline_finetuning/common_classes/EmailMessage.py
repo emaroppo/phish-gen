@@ -144,6 +144,50 @@ class EmailMessage(BaseModel):
     def add_topic(self, topic: List[List[Union[str, float]]]):
         self.topic = topic
 
+    def remove_overlapping_labels(self):
+        # get a list of all labels
+        labels = list()
+
+        if self.entities is not None:
+            for detection_method in self.entities:
+                if self.entities[detection_method] is not None:
+                    for entity_type in self.entities[detection_method]:
+                        labels.extend(
+                            [
+                                (detection_method, entity_type, label)
+                                for label in self.entities[detection_method][
+                                    entity_type
+                                ]
+                            ]
+                        )
+
+        labels.sort(key=lambda x: (x[2][1], -len(x[2][0])))
+
+        # Initialize a list to hold non-overlapping labels
+        non_overlapping_labels = []
+
+        # Initialize the end index of the last added label to -1
+        last_end_idx = -1
+
+        for label in labels:
+            _, start_idx, end_idx = label[2]
+
+            # If the current label does not overlap with the last added label, add it to the list
+            if start_idx > last_end_idx:
+                non_overlapping_labels.append(label)
+                last_end_idx = end_idx
+        # reconstruct the entities dictionary
+        self.entities = dict()
+        for label in non_overlapping_labels:
+
+            detection_method, entity_type, entity = label
+            if detection_method not in self.entities:
+                self.entities[detection_method] = dict()
+            if entity_type not in self.entities[detection_method]:
+                self.entities[detection_method][entity_type] = list()
+
+            self.entities[detection_method][entity_type].append(entity)
+
     def insert_entity_placeholders(
         self, entity_types: List[str], manual=True, auto=False
     ):
@@ -166,15 +210,25 @@ class EmailMessage(BaseModel):
         self.body = re.sub(footer, "", self.body)
         return self.body
 
-    def get_attachment_format(self):
-        if "ATTACHMENT" in self.entities["manual"]:
-            attachments = [
-                entity[0] for entity in self.entities["manual"]["ATTACHMENT"]
-            ]
+    def get_attachments_formats(self):
+        if self.entities is not None and "manual" in self.entities:
+            if "ATTACHMENT" in self.entities["manual"]:
+                attachments = [
+                    entity[0] for entity in self.entities["manual"]["ATTACHMENT"]
+                ]
 
-            self.attachments_formats = [
-                attachment.split(".")[-1] for attachment in attachments
-            ]
+                # remove >> and/or ) from the attachment name
+                self.attachments_format = [
+                    attachment.split(".")[-1] for attachment in attachments
+                ]
+                self.attachments_format = [
+                    attachment.split(")")[0].lower()
+                    for attachment in self.attachments_format
+                ]
+                self.attachments_format = [
+                    attachment.split(">>")[0].lower()
+                    for attachment in self.attachments_format
+                ]
 
     def to_db_entry(self) -> EmailMessageEntry:
         db_entry = {
@@ -207,6 +261,9 @@ class EmailMessage(BaseModel):
 
         if self.word_count is not None:
             db_entry["word_count"] = self.word_count
+
+        if self.attachments_format is not None:
+            db_entry["attachments_format"] = self.attachments_format
 
         return EmailMessageEntry(**db_entry).model_dump(by_alias=True)
 
