@@ -3,6 +3,7 @@ urls_dict = {
     "placeholder": "URL",
     "regex": [
         r"(https?://\S+)",
+        r"(www\.\S+(?:\.\w+)+\b)",
     ],
 }
 attachments_dict = {
