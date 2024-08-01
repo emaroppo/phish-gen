@@ -2,14 +2,15 @@ placeholder_dict = dict()
 urls_dict = {
     "placeholder": "URL",
     "regex": [
-        r"(https?://\S+)",
+        r"(https?:\/\/\S+)",
         r"(www\.\S+(?:\.\w+)+\b)",
     ],
 }
 attachments_dict = {
     "placeholder": "ATTACHMENT",
     "regex": [
-        r"<<File:(.*?)>>",
+        r"<<\s+File:(.*?)>>",
+        r"<<File\s+Attachment:\s+(.*?)>>",
         r"\(See attached file:(.*?)\)",
         r"<<((?:.*?)\.(?:[A-z0-9]{1,4}))>>",
         r"- ((?:.*?)\.(?:[A-z0-9]{1,4}))",
