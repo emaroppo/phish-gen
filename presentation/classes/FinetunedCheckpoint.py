@@ -24,6 +24,7 @@ class FinetunedCheckpoint(BaseModel):
         if "urls" in data["attachment_metrics"]:
             # drop urls from attachment metrics
             data["attachment_metrics"].pop("urls")
+            print(data["attachment_metrics"])
         if "attachments" in data["attachment_metrics"]:
             # drop attachments from attachment metrics
             data["attachment_metrics"].pop("attachments")
@@ -51,10 +52,10 @@ class FinetunedCheckpoint(BaseModel):
             {"$project": {"checkpoints": 1}},
         ]
         checkpoint = query_manager.connection["models"]["summary"].aggregate(pipeline)
+        checkpoint = list(checkpoint)[0]["checkpoints"]
         return cls.deserialize(checkpoint, include_messages=True)
 
     def get_messages(self):
-        print(self.base_model_id.split("/")[-1])
         messages = query_manager.connection["models"][
             f"outputs_{self.base_model_id.split('/')[-1]}_{self.timestamp}_{self.steps}"
         ].find()
