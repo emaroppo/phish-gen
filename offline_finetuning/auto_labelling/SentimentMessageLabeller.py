@@ -3,15 +3,17 @@ from offline_finetuning.auto_labelling.MessageLabeller import MessageLabeller
 
 class SentimentMessageLabeller(MessageLabeller):
 
-    def label_message(self, message_body: str):
+    def label_message(self, message_body):
         labels = self.classifier(
             message_body, max_length=512, truncation=True, padding="max_length"
-        )[0]
-
+        )
+        if type(message_body) == str:
+            return labels[0]
         return labels
 
     def validate_label(self, labels: list, message_body: str):
         message_label = self.label_message(message_body)
+
         top_n = len(labels)
         # retrieve the top_n labels with the highest scores
         top_labels = sorted(message_label, key=lambda x: x["score"], reverse=True)[
