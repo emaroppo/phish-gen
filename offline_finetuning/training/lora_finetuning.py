@@ -32,7 +32,19 @@ def train_lora(
     model_id: str,
     quantized: Union[Literal["4bit", "8bit"], None] = None,
     output_dir: str = "offline_finetuning/models/{model_id}",
-    custom_tokens: list = ["<URL>", "<ATTACHMENT>", "<PHONE>", "<DATE>"],
+    custom_tokens: list = [
+        "<URL>",
+        "<ATTACHMENT>",
+        "<PHONE>",
+        "<DATE>",
+        "<EMAIL>",
+        "<PER>",
+        "<ORG>",
+    ],
+    rank: int = 16,
+    batch_size: int = 4,
+    gradient_accumulation_steps: int = 4,
+    learning_rate: float = 2e-4,
 ):
 
     tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -91,7 +103,7 @@ def train_lora(
 
     model.lm_head = CastOutputToFloat(model.lm_head)
 
-    config = LoraConfig(task_type="CAUSAL_LM", r=16)
+    config = LoraConfig(task_type="CAUSAL_LM", r=rank)
     model = get_peft_model(model, config)
 
     # model training
@@ -99,11 +111,11 @@ def train_lora(
         tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8
     )
     args = TrainingArguments(
-        per_device_train_batch_size=4,
-        gradient_accumulation_steps=4,
-        num_train_epochs=5,
+        per_device_train_batch_size=batch_size,
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        num_train_epochs=2,
         save_steps=200,
-        learning_rate=2e-4,
+        learning_rate=learning_rate,
         fp16=True,
         logging_steps=1,
         output_dir=output_dir,
@@ -117,9 +129,11 @@ def train_lora(
     model.save_pretrained(output_dir)
 
 
+"""
 train_lora(
     dataset_path="offline_finetuning/datasets/pytorch/enron",
     model_id="google/gemma-2b",
     quantized="4bit",
     output_dir="offline_finetuning/models/gemma-2b",
 )
+"""

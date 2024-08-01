@@ -10,19 +10,29 @@ from prompt_generation.generate_prompt import (
     PromptOutputPair,
 )
 from functools import cached_property
+from presentation.classes.FinetunedModel import FinetunedModel
 
 
 class MessageGenerator(BaseModel):
-    base_model_id: str
-    quantized: Optional[Union[Literal["4bit", "8bit"], None]] = None
-    adapter: Optional[str] = None
+    finetuned_model: FinetunedModel
+    checkpoint: Optional[int] = None
 
     @computed_field
     @cached_property
     def tokenizer(self) -> Any:
-        tokenizer = AutoTokenizer.from_pretrained(self.base_model_id)
+        tokenizer = AutoTokenizer.from_pretrained(self.finetuned_model.base_model_id)
         tokenizer.pad_token = tokenizer.eos_token
-        tokenizer.add_tokens(["<URL>", "<ATTACHMENT>", "<PHONE>", "<DATE>"])
+        tokenizer.add_tokens(
+            [
+                "<URL>",
+                "<ATTACHMENT>",
+                "<PHONE>",
+                "<DATE>",
+                "<EMAIL>",
+                "<PER>",
+                "<ORG>",
+            ],
+        )
 
         return tokenizer
 
@@ -31,14 +41,14 @@ class MessageGenerator(BaseModel):
     def gen_model(self) -> Any:
 
         # Assuming load_model is a function that loads a model and tokenizer based on the given parameters
-        if self.quantized is None:
+        if self.finetuned_model.quantization is None:
             model = AutoModelForCausalLM.from_pretrained(
-                self.base_model_id,
+                self.finetuned_model.base_model_id,
                 device_map="auto",
             )
 
         else:
-            if self.quantized == "4bit":
+            if self.finetuned_model.quantization == "4bit":
                 bnb_config = BitsAndBytesConfig(
                     load_in_4bit=True,
                     bnb_4bit_quant_type="nf4",
@@ -47,10 +57,10 @@ class MessageGenerator(BaseModel):
                 )
 
                 model = AutoModelForCausalLM.from_pretrained(
-                    self.base_model_id, quantization_config=bnb_config
+                    self.finetuned_model.base_model_id, quantization_config=bnb_config
                 )
 
-            elif self.quantized == "8bit":
+            elif self.finetuned_model.quantization == "8bit":
                 bnb_config = BitsAndBytesConfig(
                     load_in_8bit=True,
                     bnb_8bit_quant_type="nf8",
@@ -59,17 +69,22 @@ class MessageGenerator(BaseModel):
                 )
 
                 model = AutoModelForCausalLM.from_pretrained(
-                    self.base_model_id, quantization_config=bnb_config
+                    self.finetuned_model.base_model_id, quantization_config=bnb_config
                 )
 
             else:
-                raise ValueError(f"Quantization type {self.quantized} is not supported")
+                raise ValueError(
+                    f"Quantization type {self.finetuned_model.quantization} is not supported"
+                )
 
         model.resize_token_embeddings(len(self.tokenizer))
 
-        if self.adapter:
+        if self.checkpoint:
 
-            model = PeftModel.from_pretrained(model, self.adapter)
+            model = PeftModel.from_pretrained(
+                model,
+                f"offline_finetuning/models/{self.finetuned_model.base_model_id.split('/')[-1]}/{self.finetuned_model.timestamp}/checkpoint-{self.checkpoint}",
+            )
 
         return model
 
@@ -107,6 +122,27 @@ class MessageGenerator(BaseModel):
             )
 
             output_text = self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
+            # get finetuned_model_checkpoint
+            checkpoint = self.finetuned_model.get_checkpoint(self.checkpoint)
+            try:
+                checkpoint.add_message(
+                    urls=urls,
+                    attachments=attachments,
+                    sentiment=sentiment,
+                    subject=subject,
+                    body=output_text.split("\n->\nbody: ")[1].strip(),
+                    save=True,
+                )
+            except IndexError:
+                checkpoint.add_message(
+                    urls=urls,
+                    attachments=attachments,
+                    sentiment=sentiment,
+                    subject=subject,
+                    body=output_text,
+                    save=True,
+                )
+
             return output_text
 
         if guided:
