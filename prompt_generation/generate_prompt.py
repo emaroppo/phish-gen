@@ -21,16 +21,6 @@ class PromptOutputPair(BaseModel):
     output_message: OutputMessage
 
 
-def get_sentiment(
-    sentiment: List[Dict[str, Union[str, int, float]]], max_sentiment: int = 2
-) -> List[int]:
-    extracted_sentiment = [
-        i["label"] for i in sentiment if i["score"] > 1 / (max_sentiment + 1)
-    ]
-
-    return extracted_sentiment
-
-
 def generate_prompt(
     subject: str, attachments: bool = False, urls: bool = False, sentiment=None
 ) -> str:
@@ -42,8 +32,7 @@ def generate_prompt(
         prompt["attachments"] = attachments
 
     if sentiment:
-        if type(sentiment[0]) == dict:
-            sentiment = get_sentiment(sentiment)
+
         sentiment = ", ".join(sentiment)
         prompt["sentiment"] = sentiment
 
