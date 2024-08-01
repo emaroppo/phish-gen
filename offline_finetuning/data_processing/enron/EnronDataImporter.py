@@ -77,6 +77,16 @@ class EnronDataImporter(DataImporter):
                 j.extract_headers_main()
             thread.save()
 
+        # extract forwarded messages
+        for i in tqdm(
+            query_manager.connection[self.db_name]["step2_forwarded"].find(),
+            desc="Separating forwarded messages",
+        ):
+            thread = EnronThread.deserialize(
+                i, db_name=self.db_name, collection="step2_forwarded"
+            )
+            thread.extract_forwarded_messages(thread.messages[0])
+
     def step2_5_clean_messages(self):
         # extract disclaimers
         collections = ("step2_single", "step2_forwarded", "step2_multipart")
@@ -236,6 +246,17 @@ class EnronDataImporter(DataImporter):
             ]
             for thread in tqdm(threads):
                 thread.get_attachments_formats(save=True)
+
+        # remove overlapping labels
+        for collection in collections:
+            threads = [
+                EnronThread.deserialize(
+                    thread, db_name=self.db_name, collection=collection
+                )
+                for thread in query_manager.connection[self.db_name][collection].find()
+            ]
+            for thread in tqdm(threads):
+                thread.remove_overlapping_labels()
 
         return
 
