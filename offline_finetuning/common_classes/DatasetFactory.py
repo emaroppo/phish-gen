@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Dict
+from typing import List, Dict, Union
 from offline_finetuning.common_classes.QueryManager import query_manager
 from offline_finetuning.data_processing.enron.regex.placeholder_dict import (
     placeholder_dict,
@@ -10,6 +10,18 @@ from typing import List
 import json
 from tqdm import tqdm
 from prompt_generation.generate_prompt import generate_prompt_output_pair
+from datetime import datetime
+from presentation.classes.FinetuningDataset import FinetuningDataset
+
+
+def get_sentiment(
+    sentiment: List[Dict[str, Union[str, int, float]]], max_sentiment: int = 2
+) -> List[str]:
+    extracted_sentiment = [
+        i["label"] for i in sentiment if i["score"] > 1 / (max_sentiment + 1)
+    ]
+
+    return extracted_sentiment
 
 
 def insert_entity_placeholders(
@@ -60,6 +72,19 @@ class DatasetFactory(BaseModel):
 
         dataset = list()
 
+        finetuning_dataset = FinetuningDataset(
+            timestamp=int(datetime.now().timestamp()),
+            custom_tokens=[
+                "<URL>",
+                "<ATTACHMENT>",
+                "<PHONE>",
+                "<DATE>",
+                "<EMAIL>",
+                "<PER>",
+                "<ORG>",
+            ],
+        )
+
         projection = {"$project": {"message": {"$arrayElemAt": ["$messages", -1]}}}
 
         for db_name, collections in self.databases.items():
@@ -75,10 +100,12 @@ class DatasetFactory(BaseModel):
                     attachments = False
                     urls = False
 
+                    # realised there were some missing implementations in the handling of forwarded messages, skipping them for now
                     if (
                         thread["is_html"]
                         or thread["word_count"] < 7
                         or thread["word_count"] > 384
+                        or thread["forwarded_by"] == True
                     ):
                         continue
                     if "headers" not in thread:
@@ -120,15 +147,33 @@ class DatasetFactory(BaseModel):
 
                             thread["body"] = insert_entity_placeholders(thread)
 
+                    sentiment = get_sentiment(thread["sentiment"])
+
+                    finetuning_dataset.add_message(
+                        urls=urls,
+                        attachments=attachments,
+                        body=thread["body"],
+                        subject=thread["headers"]["Subject"],
+                        sentiment=sentiment,
+                        attachments_formats=thread["attachments_format"],
+                    )
                     dataset.append(
                         generate_prompt_output_pair(
                             body=thread["body"],
                             subject=thread["headers"]["Subject"],
                             attachments=attachments,
                             urls=urls,
-                            sentiment=thread["sentiment"],
+                            sentiment=sentiment,
                         )
                     )
+
+        # save dataset to db
+        query_manager.connection["datasets"]["summary"].insert_one(
+            finetuning_dataset.serialise(include_samples=False)
+        )
+        query_manager.connection["datasets"][
+            f"samples_{finetuning_dataset.timestamp}"
+        ].insert_many([message.serialise() for message in finetuning_dataset.messages])
 
         dataset = Dataset.from_dict({"text": dataset})
         # shuffle the dataset
