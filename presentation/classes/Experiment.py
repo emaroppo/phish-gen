@@ -34,8 +34,9 @@ class Experiment(BaseModel):
     def run_experiment(
         cls,
         dataset_timestamp,
-        model_id,
+        base_model_id,
         rank,
+        epochs,
         quantization,
         batch_size,
         gradient_accumulation_steps,
@@ -47,7 +48,7 @@ class Experiment(BaseModel):
         finetuned_model = FinetunedModel(
             timestamp=model_timestamp,
             dataset_timestamp=dataset_timestamp,
-            base_model_id=model_id,
+            base_model_id=base_model_id,
             rank=rank,
             quantization=quantization,
             batch_size=batch_size,
@@ -57,9 +58,10 @@ class Experiment(BaseModel):
 
         model = finetune.train_lora(
             dataset_path=dataset_path,
-            output_dir=f"offline_finetuning/models/{model_id}/{model_timestamp}",
-            model_id=model_id,
+            output_dir=f"offline_finetuning/models/{base_model_id.split('/')[-1]}/{model_timestamp}",
+            model_id=base_model_id,
             quantized=quantization,
+            epochs=epochs,
             rank=rank,
             batch_size=batch_size,
             gradient_accumulation_steps=gradient_accumulation_steps,
@@ -67,15 +69,15 @@ class Experiment(BaseModel):
         )
 
         for checkpoint in os.listdir(
-            f"offline_finetuning/models/{model_id.split('/')[-1]}/{model_timestamp}"
+            f"offline_finetuning/models/{base_model_id.split('/')[-1]}/{model_timestamp}"
         ):
             if os.path.isdir(
-                f"offline_finetuning/models/{model_id.split('/')[-1]}/{model_timestamp}/{checkpoint}"
+                f"offline_finetuning/models/{base_model_id.split('/')[-1]}/{model_timestamp}/{checkpoint}"
             ):
                 n_steps = int(checkpoint.split("-")[1])
                 finetuned_model.add_checkpoint(
                     timestamp=model_timestamp,
-                    base_model_id=model_id,
+                    base_model_id=base_model_id,
                     steps=n_steps,
                 )
 

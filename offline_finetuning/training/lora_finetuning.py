@@ -8,10 +8,13 @@ from transformers import (
     Trainer,
     TrainingArguments,
     BitsAndBytesConfig,
+    TrainerCallback,
 )
 from peft import LoraConfig, get_peft_model
 from typing import Union, Literal
 from datasets import load_from_disk
+import json
+import os
 
 
 def load_dataset(path: str, tokenizer):
@@ -27,10 +30,23 @@ def load_dataset(path: str, tokenizer):
     return data
 
 
+class LossLoggerCallback(TrainerCallback):
+    def __init__(self, log_file):
+        self.log_file = log_file
+        self.losses = []
+
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        if logs is not None and "loss" in logs:
+            self.losses.append({"step": state.global_step, "loss": logs["loss"]})
+            with open(self.log_file, "w") as f:
+                json.dump(self.losses, f)
+
+
 def train_lora(
     dataset_path: str,
     model_id: str,
     quantized: Union[Literal["4bit", "8bit"], None] = None,
+    epochs: int = 2,
     output_dir: str = "offline_finetuning/models/{model_id}",
     custom_tokens: list = [
         "<URL>",
@@ -45,6 +61,7 @@ def train_lora(
     batch_size: int = 4,
     gradient_accumulation_steps: int = 4,
     learning_rate: float = 2e-4,
+    log_file: str = "loss_log.json",
 ):
 
     tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -113,8 +130,8 @@ def train_lora(
     args = TrainingArguments(
         per_device_train_batch_size=batch_size,
         gradient_accumulation_steps=gradient_accumulation_steps,
-        num_train_epochs=2,
-        save_steps=200,
+        num_train_epochs=epochs,
+        save_steps=500,
         learning_rate=learning_rate,
         fp16=True,
         logging_steps=1,
@@ -122,7 +139,11 @@ def train_lora(
     )
 
     trainer = Trainer(
-        model=model, train_dataset=data, args=args, data_collator=data_collator
+        model=model,
+        train_dataset=data,
+        args=args,
+        data_collator=data_collator,
+        callbacks=[LossLoggerCallback(log_file)],
     )
 
     trainer.train()
