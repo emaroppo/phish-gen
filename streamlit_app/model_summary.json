@@ -1,0 +1,267 @@
+[{
+  "_id": {
+    "$oid": "66aa1d3a9d026c32c291c75f"
+  },
+  "timestamp": 1722274538,
+  "base_model_id": "google/gemma-2b",
+  "rank": 16,
+  "quantization": "4bit",
+  "batch_size": 4,
+  "gradient_accumulation_steps": 4,
+  "learning_rate": 0.0002,
+  "checkpoints": [
+    {
+      "timestamp": 1722274538,
+      "base_model_id": "google/gemma-2b",
+      "steps": 1800,
+      "message_count": 84,
+      "sentiment_metrics": {
+        "accuracy": 0.13095238095238096
+      },
+      "url_metrics": {
+        "accuracy": 0.5833333333333334
+      },
+      "attachment_metrics": {
+        "accuracy": 0.8333333333333334,
+        "urls": {
+          "accuracy": 0.5833333333333334
+        },
+        "attachments": {
+          "accuracy": 0.8333333333333334
+        }
+      }
+    },
+    {
+      "timestamp": 1722274538,
+      "base_model_id": "google/gemma-2b",
+      "steps": 600,
+      "message_count": 84,
+      "sentiment_metrics": {
+        "accuracy": 0.15476190476190477
+      },
+      "url_metrics": {
+        "accuracy": 0.5714285714285714
+      },
+      "attachment_metrics": {
+        "accuracy": 0.47619047619047616,
+        "urls": {
+          "accuracy": 0.5714285714285714
+        },
+        "attachments": {
+          "accuracy": 0.47619047619047616
+        }
+      }
+    },
+    {
+      "timestamp": 1722274538,
+      "base_model_id": "google/gemma-2b",
+      "steps": 1600,
+      "message_count": 84,
+      "sentiment_metrics": {
+        "accuracy": 0.15476190476190477
+      },
+      "url_metrics": {
+        "accuracy": 0.5357142857142857
+      },
+      "attachment_metrics": {
+        "accuracy": 0.8452380952380952,
+        "urls": {
+          "accuracy": 0.5357142857142857
+        },
+        "attachments": {
+          "accuracy": 0.8452380952380952
+        }
+      }
+    },
+    {
+      "timestamp": 1722274538,
+      "base_model_id": "google/gemma-2b",
+      "steps": 2000,
+      "message_count": 84,
+      "sentiment_metrics": {
+        "accuracy": 0.14285714285714285
+      },
+      "url_metrics": {
+        "accuracy": 0.5238095238095238
+      },
+      "attachment_metrics": {
+        "accuracy": 0.7619047619047619,
+        "urls": {
+          "accuracy": 0.5238095238095238
+        },
+        "attachments": {
+          "accuracy": 0.7619047619047619
+        }
+      }
+    },
+    {
+      "timestamp": 1722274538,
+      "base_model_id": "google/gemma-2b",
+      "steps": 200,
+      "message_count": 84,
+      "sentiment_metrics": {
+        "accuracy": 0.14285714285714285
+      },
+      "url_metrics": {
+        "accuracy": 0.4523809523809524
+      },
+      "attachment_metrics": {
+        "accuracy": 0.4880952380952381,
+        "urls": {
+          "accuracy": 0.4523809523809524
+        },
+        "attachments": {
+          "accuracy": 0.4880952380952381
+        }
+      }
+    },
+    {
+      "timestamp": 1722274538,
+      "base_model_id": "google/gemma-2b",
+      "steps": 2400,
+      "message_count": 84,
+      "sentiment_metrics": {
+        "accuracy": 0.15476190476190477
+      },
+      "url_metrics": {
+        "accuracy": 0.6071428571428571
+      },
+      "attachment_metrics": {
+        "accuracy": 0.8690476190476191,
+        "urls": {
+          "accuracy": 0.6071428571428571
+        },
+        "attachments": {
+          "accuracy": 0.8690476190476191
+        }
+      }
+    },
+    {
+      "timestamp": 1722274538,
+      "base_model_id": "google/gemma-2b",
+      "steps": 1400,
+      "message_count": 84,
+      "sentiment_metrics": {
+        "accuracy": 0.13095238095238096
+      },
+      "url_metrics": {
+        "accuracy": 0.6071428571428571
+      },
+      "attachment_metrics": {
+        "accuracy": 0.7380952380952381,
+        "urls": {
+          "accuracy": 0.6071428571428571
+        },
+        "attachments": {
+          "accuracy": 0.7380952380952381
+        }
+      }
+    },
+    {
+      "timestamp": 1722274538,
+      "base_model_id": "google/gemma-2b",
+      "steps": 1000,
+      "message_count": 84,
+      "sentiment_metrics": {
+        "accuracy": 0.14285714285714285
+      },
+      "url_metrics": {
+        "accuracy": 0.5119047619047619
+      },
+      "attachment_metrics": {
+        "accuracy": 0.6785714285714286,
+        "urls": {
+          "accuracy": 0.5119047619047619
+        },
+        "attachments": {
+          "accuracy": 0.6785714285714286
+        }
+      }
+    },
+    {
+      "timestamp": 1722274538,
+      "base_model_id": "google/gemma-2b",
+      "steps": 1200,
+      "message_count": 84,
+      "sentiment_metrics": {
+        "accuracy": 0.15476190476190477
+      },
+      "url_metrics": {
+        "accuracy": 0.5595238095238095
+      },
+      "attachment_metrics": {
+        "accuracy": 0.75,
+        "urls": {
+          "accuracy": 0.5595238095238095
+        },
+        "attachments": {
+          "accuracy": 0.75
+        }
+      }
+    },
+    {
+      "timestamp": 1722274538,
+      "base_model_id": "google/gemma-2b",
+      "steps": 400,
+      "message_count": 84,
+      "sentiment_metrics": {
+        "accuracy": 0.13095238095238096
+      },
+      "url_metrics": {
+        "accuracy": 0.5119047619047619
+      },
+      "attachment_metrics": {
+        "accuracy": 0.47619047619047616,
+        "urls": {
+          "accuracy": 0.5119047619047619
+        },
+        "attachments": {
+          "accuracy": 0.47619047619047616
+        }
+      }
+    },
+    {
+      "timestamp": 1722274538,
+      "base_model_id": "google/gemma-2b",
+      "steps": 800,
+      "message_count": 84,
+      "sentiment_metrics": {
+        "accuracy": 0.15476190476190477
+      },
+      "url_metrics": {
+        "accuracy": 0.4642857142857143
+      },
+      "attachment_metrics": {
+        "accuracy": 0.5238095238095238,
+        "urls": {
+          "accuracy": 0.4642857142857143
+        },
+        "attachments": {
+          "accuracy": 0.5238095238095238
+        }
+      }
+    },
+    {
+      "timestamp": 1722274538,
+      "base_model_id": "google/gemma-2b",
+      "steps": 2200,
+      "message_count": 84,
+      "sentiment_metrics": {
+        "accuracy": 0.14285714285714285
+      },
+      "url_metrics": {
+        "accuracy": 0.5714285714285714
+      },
+      "attachment_metrics": {
+        "accuracy": 0.8333333333333334,
+        "urls": {
+          "accuracy": 0.5714285714285714
+        },
+        "attachments": {
+          "accuracy": 0.8333333333333334
+        }
+      }
+    }
+  ],
+  "dataset_timestamp": 1722274538
+}]

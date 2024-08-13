@@ -1,0 +1,72 @@
+[{
+  "_id": {
+    "$oid": "66a7d2eea33d7d1c12ac5139"
+  },
+  "timestamp": 1722274538,
+  "message_count": 32953,
+  "attachment_formats": {
+    "3": 1,
+    "5": 2,
+    "29": 1,
+    "43": 1,
+    "75": 1,
+    "95": 2,
+    "345": 2,
+    "853": 2,
+    "1800": 1,
+    "pdf": 754,
+    "doc": 1857,
+    "xls": 633,
+    "corp": 6,
+    "enro": 17,
+    "ppt": 65,
+    "scat": 1,
+    "rtow": 1,
+    "ener": 2,
+    "garc": 1,
+    "com": 4,
+    "f": 1,
+    "cant": 1,
+    "s": 2,
+    "m": 5,
+    "07": 1,
+    "ibce": 1,
+    "ista": 1,
+    "bigf": 1,
+    "wmv": 1,
+    "xls ": 3,
+    "edu": 1,
+    "jone": 1,
+    "nyu": 1,
+    "adve": 1,
+    "fiel": 1
+  },
+  "sentiments": {
+    "neutral": 31124,
+    "joy": 1997,
+    "surprise": 114,
+    "fear": 108,
+    "sadness": 451,
+    "anger": 358,
+    "disgust": 31
+  },
+  "entities": {},
+  "entity_counts": {
+    "<PHONE>": 17553,
+    "<PER>": 15509,
+    "<DATE>": 13848,
+    "<ORG>": 26220,
+    "<EMAIL>": 11717,
+    "<ATTACHMENT>": 3184,
+    "<URL>": 14043
+  },
+  "custom_tokens": [
+    "<URL>",
+    "<ATTACHMENT>",
+    "<PHONE>",
+    "<DATE>",
+    "<EMAIL>",
+    "<PER>",
+    "<ORG>"
+  ]
+}]
