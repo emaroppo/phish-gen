@@ -42,6 +42,22 @@ class LossLoggerCallback(TrainerCallback):
                 json.dump(self.losses, f)
 
 
+def initialize_new_embeddings(model, tokenizer, related_tokens_dict):
+    new_tokens = tokenizer.added_tokens_encoder.keys()
+    new_token_ids = [tokenizer.convert_tokens_to_ids(token) for token in new_tokens]
+    embedding_layer = model.get_input_embeddings()
+
+    for token, token_id in zip(new_tokens, new_token_ids):
+        related_tokens = related_tokens_dict.get(token, [])
+        if related_tokens:
+            related_token_ids = [
+                tokenizer.convert_tokens_to_ids(rt) for rt in related_tokens
+            ]
+            related_embeddings = embedding_layer.weight.data[related_token_ids]
+            average_embedding = related_embeddings.mean(dim=0)
+            embedding_layer.weight.data[token_id] = average_embedding
+
+
 def train_lora(
     dataset_path: str,
     model_id: str,
@@ -57,6 +73,15 @@ def train_lora(
         "<PER>",
         "<ORG>",
     ],
+    related_tokens_dict: dict = {
+        "<URL>": ["http://", "url"],
+        "<ATTACHMENT>": ["attachment", "file", "doc", "xls", "ppt", "pdf"],
+        "<PHONE>": ["phone", "number"],
+        "<DATE>": ["date", "time"],
+        "<EMAIL>": ["email", "mail"],
+        "<PER>": ["person", "individual"],
+        "<ORG>": ["organization", "company"],
+    },
     rank: int = 16,
     batch_size: int = 4,
     gradient_accumulation_steps: int = 4,
@@ -102,6 +127,7 @@ def train_lora(
         )
     if custom_tokens:
         model.resize_token_embeddings(len(tokenizer))
+        initialize_new_embeddings(model, tokenizer, related_tokens_dict)
     data = load_dataset(dataset_path, tokenizer)
 
     # freeze model weights
