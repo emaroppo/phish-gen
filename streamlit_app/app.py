@@ -92,7 +92,7 @@ elif option == "Model":
 
     if model_checkpoint == "Overview":
         # plot model overview
-        st.write("Model Overview")
+        st.write(f"Model {model_timestamp} - Overview")
         tasks_accuracy = dict()
         tasks_accuracy["urls"] = list()
         tasks_accuracy["attachments"] = list()
@@ -124,7 +124,7 @@ elif option == "Model":
             if checkpoint["steps"] == model_checkpoint
         )
 
-        st.write(f"Checkpoint {model_checkpoint}")
+        st.write(f"Model {model_timestamp} - Checkpoint {model_checkpoint}")
 
         metrics = {
             "attachments": checkpoint_data["attachment_metrics"]["accuracy"],
