@@ -14,17 +14,25 @@ message_generator = MessageGenerator(finetuned_model=finetuned_model, checkpoint
 
 st.title("DPO Generator")
 st.write("This tool is used to generate data pairs for Direct Preference Optimization (DPO).")
-st.write("Prompt:")
-subject = st.text_input("Subject")
-urls = st.radio("Include URLs", (True, False))
-attachments = st.radio("Include Attachments", (True, False))
+col1, col2 = st.columns(2)
+with col1:  
+    urls = st.radio("Include URLs", (True, False))
+with col2:
+    attachments = st.radio("Include Attachments", (True, False))
 sentiment = st.multiselect("Sentiment", ["neutral", "joy", "sadness", "fear", "anger", "surprise", "disgust"])
+subject = st.text_input("Subject")
 
+prompt = {
+    "subject": subject,
+    "urls": urls,
+    "attachments": attachments,
+    "sentiment": sentiment
+}
 #press button to generate a messge pair
 button = st.button("Generate Message Pair")
 if button:
-    message1 = message_generator.generate_message(subject=subject, urls=urls, attachments=attachments, sentiment=sentiment)
-    message2 = message_generator.generate_message(subject=subject, urls=urls, attachments=attachments, sentiment=sentiment)
+    message1 = message_generator.generate_message(**prompt)
+    message2 = message_generator.generate_message(**prompt)
 
     st.write("Generated Message Pair:")
     col1, col2 = st.columns(2)
@@ -34,7 +42,7 @@ if button:
         st.write(message1)
         button_1 = st.button("Select Message 1")
         if button_1:
-            db["dpo_dataset"].insert_one({"chosen": message1, "rejected": message2})
+            db["dpo_dataset"].insert_one({"prompt":prompt, "chosen": message1, "rejected": message2})
 
     with col2:
         st.write("Message 2")
