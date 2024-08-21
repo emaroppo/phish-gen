@@ -120,6 +120,39 @@ class Experiment(BaseModel):
                         sample_args.append(sample_arg)
         return sample_args
 
+    def continue_experiment(self, epochs):
+        # order checkpoint by steps
+        self.finetuned_model.checkpoints.sort(key=lambda x: x.steps)
+        print(self.finetuned_model.checkpoints[-1].steps)
+
+        model = finetune.train_lora(
+            dataset_path=f"offline_finetuning/datasets/transformers/{self.finetuned_model.dataset_timestamp}",
+            output_dir=f"offline_finetuning/models/{self.finetuned_model.base_model_id.split('/')[-1]}/{self.finetuned_model.timestamp}",
+            model_id=self.finetuned_model.base_model_id,
+            quantized=self.finetuned_model.quantization,
+            epochs=epochs,
+            rank=self.finetuned_model.rank,
+            batch_size=self.finetuned_model.batch_size,
+            gradient_accumulation_steps=self.finetuned_model.gradient_accumulation_steps,
+            learning_rate=self.finetuned_model.learning_rate,
+            resume_from_checkpoint=True,
+        )
+
+        for checkpoint in os.listdir(
+            f"offline_finetuning/models/{self.finetuned_model.base_model_id.split('/')[-1]}/{self.finetuned_model.timestamp}"
+        ):
+            if os.path.isdir(
+                f"offline_finetuning/models/{self.finetuned_model.base_model_id.split('/')[-1]}/{self.finetuned_model.timestamp}/{checkpoint}"
+            ):
+                n_steps = int(checkpoint.split("-")[1])
+                self.finetuned_model.add_checkpoint(
+                    timestamp=self.finetuned_model.timestamp,
+                    base_model_id=self.finetuned_model.base_model_id,
+                    steps=n_steps,
+                )
+
+        self.finetuned_model.save()
+
     def generate_evaluation_messages(self, checkpoint):
         generator = MessageGenerator(
             finetuned_model=self.finetuned_model,

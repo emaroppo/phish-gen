@@ -63,7 +63,7 @@ def train_lora(
     model_id: str,
     quantized: Union[Literal["4bit", "8bit"], None] = None,
     epochs: int = 2,
-    output_dir: str = "offline_finetuning/models/{model_id}",
+    output_dir: str = "offline_finetuning/models/gemma-2b/1724075462",
     custom_tokens: list = [
         "<URL>",
         "<ATTACHMENT>",
@@ -74,19 +74,20 @@ def train_lora(
         "<ORG>",
     ],
     related_tokens_dict: dict = {
-        "<URL>": ["http://", "url"],
-        "<ATTACHMENT>": ["attachment", "file", "doc", "xls", "ppt", "pdf"],
-        "<PHONE>": ["phone", "number"],
-        "<DATE>": ["date", "time"],
-        "<EMAIL>": ["email", "mail"],
-        "<PER>": ["person", "individual"],
-        "<ORG>": ["organization", "company"],
+        "<URL>": ["<URL>"],
+        "<ATTACHMENT>": ["<ATTACHMENT>"],
+        "<PHONE>": ["<PHONE>"],
+        "<DATE>": ["<DATE>"],
+        "<EMAIL>": ["<EMAIL>"],
+        "<PER>": ["<PER>"],
+        "<ORG>": ["<ORG>"],
     },
     rank: int = 16,
     batch_size: int = 4,
     gradient_accumulation_steps: int = 4,
     learning_rate: float = 2e-4,
     log_file: str = "loss_log.json",
+    resume_from_checkpoint: bool = True,
 ):
 
     tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -139,7 +140,6 @@ def train_lora(
     model.gradient_checkpointing_enable()
     model.enable_input_require_grads()
 
-    # TO DO: double check if required when not quantizing
     class CastOutputToFloat(torch.nn.Sequential):
         def forward(self, x):
             return super().forward(x).to(torch.float32)
@@ -172,7 +172,9 @@ def train_lora(
         callbacks=[LossLoggerCallback(log_file)],
     )
 
-    trainer.train()
+    trainer.train(
+        resume_from_checkpoint=resume_from_checkpoint,
+    )
     model.save_pretrained(output_dir)
 
 
