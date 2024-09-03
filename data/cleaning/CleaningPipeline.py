@@ -1,8 +1,8 @@
 from pydantic import BaseModel, Field
 from typing import List
-from offline_finetuning.common_classes.QueryManager import query_manager
-from offline_finetuning.common_classes.EmailMessage import EmailMessage
-from offline_finetuning.common_classes.EmailThread import EmailThread
+from data.QueryManager import query_manager
+from data.classes.EmailMessage import EmailMessage
+from data.classes.EmailThread import EmailThread
 from bson import ObjectId
 from tqdm import tqdm
 import os
@@ -10,20 +10,21 @@ import json
 import email
 import re
 
-with open(
-    "offline_finetuning/data_processing/enron/regex/thread_structure.json", "r"
-) as f:
+with open("data/regex/thread_structure.json", "r") as f:
     thread_structure = json.load(f)
 
-with open("offline_finetuning/data_processing/enron/regex/noise.json", "r") as f:
+with open("data/regex/noise.json", "r") as f:
     noise = json.load(f)
 
 
 class CleaningPipeline(BaseModel):
     database_name: str = "enron_datasource"
 
-    def load_raw_data(self, data_dir: str = "offline_finetuning/data_processing/enron/dataset/maildir"
-, out_collection: str = "raw_data"):
+    def load_raw_data(
+        self,
+        data_dir: str = "data/datasets_raw/enron",
+        out_collection: str = "raw_data",
+    ):
         for i in tqdm(os.listdir(data_dir), desc="Loading raw inboxes"):
             if "inbox" in os.listdir(data_dir + "/" + i):
                 for j in os.walk(data_dir + "/" + i + "/inbox"):
@@ -43,9 +44,12 @@ class CleaningPipeline(BaseModel):
                 if message.headers is None:
                     if message.is_main:
                         message.headers = {
-                            k: v for k, v in email.message_from_string(message.body).items()
+                            k: v
+                            for k, v in email.message_from_string(message.body).items()
                         }
-                        message.body = email.message_from_string(message.body).get_payload()
+                        message.body = email.message_from_string(
+                            message.body
+                        ).get_payload()
                     else:
                         pattern = thread_structure["headers"]["outer"]
                         match = re.search(pattern, message.body)
@@ -97,7 +101,6 @@ class CleaningPipeline(BaseModel):
                         previous_id = message.id
                         message_thread.append(message)
 
-                
                 else:
                     message_thread.append(message)
 
@@ -173,7 +176,12 @@ class CleaningPipeline(BaseModel):
         # save to a new collection (clean_data)
 
         threads = query_manager.connection[self.database_name]["raw_data"].find()
-        raw_data = [EmailThread.deserialize(thread, db_name=self.database_name, collection="raw_data") for thread in threads]
+        raw_data = [
+            EmailThread.deserialize(
+                thread, db_name=self.database_name, collection="raw_data"
+            )
+            for thread in threads
+        ]
         cleaned_data = self.extract_headers(raw_data)
         for i in cleaned_data:
             i.save("single_messages")
@@ -190,7 +198,10 @@ class CleaningPipeline(BaseModel):
                 "single_messages"
             ].find({"messages.body": {"$regex": message_split_regex}})
             multipart_messages = [
-                EmailThread.deserialize(thread, db_name=self.database_name, collection="single_messages") for thread in multipart_messages
+                EmailThread.deserialize(
+                    thread, db_name=self.database_name, collection="single_messages"
+                )
+                for thread in multipart_messages
             ]
             multipart_messages = self.split_multipart_messages(
                 multipart_messages, message_split_regex
@@ -213,10 +224,14 @@ class CleaningPipeline(BaseModel):
         for forwarded_regex in thread_structure["forwarded_separator"]:
             forwarded_regex = re.compile(forwarded_regex)
             for i in ["single_messages", "multipart_messages"]:
-                forwarded_messages = query_manager.connection[self.database_name][i].find(
-                    {"messages.body": {"$regex": forwarded_regex}})
+                forwarded_messages = query_manager.connection[self.database_name][
+                    i
+                ].find({"messages.body": {"$regex": forwarded_regex}})
                 forwarded_messages = [
-                    EmailThread.deserialize(thread, db_name=self.database_name, collection=i) for thread in forwarded_messages
+                    EmailThread.deserialize(
+                        thread, db_name=self.database_name, collection=i
+                    )
+                    for thread in forwarded_messages
                 ]
                 forwarded_messages = self.split_forwarded_messages(
                     forwarded_messages, forwarded_regex
@@ -234,7 +249,12 @@ class CleaningPipeline(BaseModel):
         # remove noise
         for i in ["single_messages", "multipart_messages", "forwarded_messages"]:
             threads = query_manager.connection[self.database_name][i].find()
-            threads = [EmailThread.deserialize(thread, db_name=self.database_name, collection=i) for thread in threads]
+            threads = [
+                EmailThread.deserialize(
+                    thread, db_name=self.database_name, collection=i
+                )
+                for thread in threads
+            ]
             cleaned_data = self.remove_noise(threads)
             for j in cleaned_data:
                 j.save(target_collection=i)
