@@ -1,13 +1,16 @@
-from offline_finetuning.data_processing.enron.EnronDataImporter import EnronDataImporter
-from offline_finetuning.common_classes.DatasetFactory import DatasetFactory
+# from offline_finetuning.data_processing.enron.EnronDataImporter import EnronDataImporter
+# from offline_finetuning.common_classes.DatasetFactory import DatasetFactory
 from inference.MessageGenerator import MessageGenerator
-from offline_finetuning.auto_labelling.TopicMessageLabeller import TopicMessageLabeller
-from offline_finetuning.common_classes.QueryManager import query_manager
-from offline_finetuning.auto_labelling.NERMessageLabeller import NERMessageLabeller
+from data.processing.labellers.TopicMessageLabeller import TopicMessageLabeller
+from data.QueryManager import query_manager
+from data.processing.labellers.NERMessageLabeller import NERMessageLabeller
+from finetuning.sft.classes.Experiment import Experiment
+from finetuning.sft.classes.FinetunedModel import FinetunedModel
+from finetuning.sft.classes.FinetuningDataset import FinetuningDataset
 
 
 def run_pipeline(
-    db_name: str = "enron_emails3",
+    db_name: str = "enron_emails",
     data_dir: str = "offline_finetuning/data_processing/enron/dataset/maildir",
 ):
 
@@ -28,14 +31,12 @@ def generate_doccamo_dataset(
 
 
 def generate_pytorch_dataset(
-    databases: dict = {
-        "enron_emails3": ["step2_single", "step2_forwarded", "step2_multipart"]
-    },
+    databases: dict = {"enron_emails": ["step2_single", "step2_multipart"]},
     from_files: bool = False,
 ):
     if from_files:
         run_pipeline(
-            db_name="enron_emails3",
+            db_name="enron_emails",
             data_dir="offline_finetuning/data_processing/enron/dataset/maildir",
         )
     dataset_factory = DatasetFactory(databases=databases)
@@ -111,4 +112,32 @@ def entity_validation(
 
 
 if __name__ == "__main__":
-    generate_pytorch_dataset(from_files=False)
+
+    related_tokens_dict = {
+        "<URL>": ["<URL>"],
+        "<ATTACHMENT>": ["<ATTACHMENT>"],
+        "<PHONE>": ["<PHONE>"],
+        "<DATE>": ["<DATE>"],
+        "<EMAIL>": ["<EMAIL>"],
+        "<PER>": ["<PER>"],
+        "<ORG>": ["<ORG>"],
+    }
+
+    experiment = Experiment.run_experiment(
+        dataset_timestamp=1722274538,
+        base_model_id="google/gemma-2b",
+        quantization="4bit",
+        epochs=2,
+        custom_tokens=[
+            "<URL>",
+            "<ATTACHMENT>",
+            "<PHONE>",
+            "<DATE>",
+            "<EMAIL>",
+            "<PER>",
+            "<ORG>",
+        ],
+        related_tokens_dict=related_tokens_dict,
+    )
+
+    experiment.evaluate_model_outputs()
