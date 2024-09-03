@@ -1,7 +1,7 @@
-from offline_finetuning.common_classes.QueryManager import query_manager
+from data.QueryManager import query_manager
 from bson import ObjectId
-from offline_finetuning.common_classes.EmailMessage import EmailMessage
-from typing import List, Optional, Dict, Any
+from data.classes.EmailMessage import EmailMessage
+from typing import List, Optional, Dict, Any, Union
 from pydantic import BaseModel
 
 
@@ -84,140 +84,6 @@ class EmailThread(BaseModel):
 
         return cls(**thread_doc)
 
-    def split_original_messages(
-        self, original_message: EmailMessage, split_items: List[str]
-    ):
-        message_thread = list()
-        original_message.body = split_items.pop(0)
-        message_thread.append(original_message)
-        previous_id = original_message.id
-
-        for i in split_items:
-            message = EmailMessage.from_text(i, response=previous_id)
-            message_thread.append(message)
-            previous_id = message.id
-
-        # save the split thread in the db
-        self.messages = message_thread
-
-        self.save()
-
-    def extract_forwarded_messages(
-        self,
-        thread_id: ObjectId,
-        original_message: EmailMessage,
-        split_items: List[str],
-    ):
-        original_message.body = split_items.pop(0)
-        # all threads seems to have at most one forwarded message, will update the code to handle multiple forwarded messages if needed
-        new_message = EmailMessage.from_text(
-            split_items.pop(-1), forwarded_by=original_message.id
-        )
-        # update the original message body in the db
-        # not a fan of this approach if possible would like to change to changing the original EmailMessage object and then saving the changes to db
-        query_manager.connection[self.db_name][self.collection].update_one(
-            {"_id": thread_id, "messages._id": original_message.id},
-            {"$set": {"messages.$[elem].body": original_message.body}},
-            array_filters=[{"elem._id": original_message.id}],
-        )
-
-        # save the forwarded message
-        query_manager.connection[self.db_name][self.collection].update_one(
-            {"_id": thread_id},
-            {"$push": {"messages": new_message.to_db_entry()}},
-        )
-        self.messages.append(new_message)
-        self.save()
-
-    def extract_disclaimers(self, disclaimer: str, save: bool = True):
-        for i in self.messages:
-            i.extract_disclaimer(disclaimer)
-
-        if save:
-            self.save()
-
-    def remove_footers(self, footer: str, save: bool = True):
-        for i in self.messages:
-            i.remove_footer(footer)
-
-        if save:
-            self.save()
-
-    def extract_entities(
-        self,
-        placeholder: str = None,
-        regex: str = None,
-        message_labeller: Any = None,
-        detection_mode: str = "manual",
-        save=True,
-    ):
-        if detection_mode == "manual":
-            if not placeholder or not regex:
-                raise ValueError(
-                    "Placeholder and regex must be provided for manual entity extraction"
-                )
-            for message in self.messages:
-                extracted_entities = message.extract_entities(
-                    placeholder,
-                    regex,
-                )
-                for entity in extracted_entities:
-                    start, end, label, entity_value = entity
-                    message.add_entity(
-                        start=start,
-                        end=end,
-                        entity_value=entity_value,
-                        entity_type=label,
-                        detection_method=detection_mode,
-                    )
-
-        elif detection_mode == "auto":
-            for message in self.messages:
-                extracted_entities = message_labeller.label_message(message.body)
-                if extracted_entities:
-                    for entity in extracted_entities:
-                        start, end, label = entity
-                        entity_value = message.body[start:end]
-                        message.add_entity(
-                            entity_type=label,
-                            start=start,
-                            end=end,
-                            entity_value=entity_value,
-                            detection_method=detection_mode,
-                        )
-
-        if save:
-            self.save()
-
-    def predict_sentiment(self, sentiment_predictor: Any, save=True):
-        for message in self.messages:
-            sentiment = sentiment_predictor.label_message(message.body)
-            message.add_sentiment(sentiment)
-
-        if save:
-            self.save()
-
-    def predict_topic(self, topic_predictor: Any, save=True):
-        for message in self.messages:
-            topic = topic_predictor.label_message(message.body)
-            message.add_topic(topic)
-
-        if save:
-            self.save()
-
-    def get_attachments_formats(self, save=False):
-        for message in self.messages:
-            message.get_attachments_formats()
-
-        if save:
-            self.save()
-
-    def remove_overlapping_labels(self):
-        for message in self.messages:
-            message.remove_overlapping_labels()
-
-        self.save()
-
     def to_db_entry(self) -> ThreadEntry:
         db_entry = {
             "_id": ObjectId(self.id),
@@ -225,12 +91,8 @@ class EmailThread(BaseModel):
             "messages": [i.to_db_entry() for i in self.messages],
         }
         return ThreadEntry(**db_entry).model_dump()
-
-    def __str__(self):
-        return f"EmailThread({self.id}, {self.file_path})"
-
-    def save(self, target_collection: str = None):
-        entry = self.to_db_entry()
+    
+    def save(self, target_collection: Union[str, None] = None):
 
         if target_collection is None:
             query_manager.connection[self.db_name][self.collection].update_one(
@@ -244,6 +106,11 @@ class EmailThread(BaseModel):
                 {"$set": self.to_db_entry()},
                 upsert=True,
             )
+
+    def __str__(self):
+        return f"EmailThread({self.id}, {self.file_path})"
+
+    
 
 
 # Path: data/EmailMessage.py
