@@ -1,6 +1,7 @@
 from bson import ObjectId
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any, Union
+from data.QueryManager import query_manager
 import re
 
 
@@ -266,6 +267,14 @@ class EmailMessage(BaseModel):
             db_entry["attachments_format"] = self.attachments_format
 
         return EmailMessageEntry(**db_entry).model_dump(by_alias=True)
+
+    def save(self, db_name: str, target_collection: str):
+        entry = self.to_db_entry()
+        query = {"messages._id": ObjectId(self.id)}
+        query_manager.connection[db_name][target_collection].update_one(
+            query, {"$set": {"messages.$": entry}}
+        )
+        return True
 
     def __str__(self):
         return f"EmailMessage({self.id}, {self.body})"
