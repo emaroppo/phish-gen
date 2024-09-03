@@ -96,45 +96,32 @@ class EmailMessage(BaseModel):
     def add_topic(self, topic: List[List[Union[str, float]]]):
         self.topic = topic
 
-    def to_db_entry(self) -> EmailMessageEntry:
+    def serialise(self) -> EmailMessageEntry:
         db_entry = {
             "_id": ObjectId(self.id),
             "is_main": self.is_main,
             "headers": self.headers,
             "body": self.body,
         }
-        if self.entities is not None:
-            db_entry["entities"] = self.entities
-
-        if self.sentiment is not None:
-            db_entry["sentiment"] = self.sentiment
-
-        if self.disclaimer is not None:
-            db_entry["disclaimer"] = self.disclaimer
-
-        if self.topic is not None:
-            db_entry["topic"] = self.topic
-
-        if self.response is not None and self.response != "None":
-
-            db_entry["response"] = ObjectId(self.response)
-
-        if self.forwarded_by is not None and self.forwarded_by != "None":
-            db_entry["forwarded_by"] = ObjectId(self.forwarded_by)
-
-        if self.is_html:
-            db_entry["is_html"] = self.is_html
-
-        if self.word_count is not None:
-            db_entry["word_count"] = self.word_count
-
-        if self.attachments_format is not None:
-            db_entry["attachments_format"] = self.attachments_format
-
+    
+        optional_fields = {
+            "entities": self.entities,
+            "sentiment": self.sentiment,
+            "disclaimer": self.disclaimer,
+            "topic": self.topic,
+            "response": ObjectId(self.response) if self.response and self.response != "None" else None,
+            "forwarded_by": ObjectId(self.forwarded_by) if self.forwarded_by and self.forwarded_by != "None" else None,
+            "is_html": self.is_html if self.is_html else None,
+            "word_count": self.word_count,
+            "attachments_format": self.attachments_format,
+        }
+    
+        db_entry.update({k: v for k, v in optional_fields if v is not None})
+    
         return EmailMessageEntry(**db_entry).model_dump(by_alias=True)
 
     def save(self, db_name: str, target_collection: str):
-        entry = self.to_db_entry()
+        entry = self.serialise()
         query = {"messages._id": ObjectId(self.id)}
         query_manager.connection[db_name][target_collection].update_one(
             query, {"$set": {"messages.$": entry}}

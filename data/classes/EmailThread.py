@@ -84,11 +84,11 @@ class EmailThread(BaseModel):
 
         return cls(**thread_doc)
 
-    def to_db_entry(self) -> ThreadEntry:
+    def serialise(self) -> ThreadEntry:
         db_entry = {
             "_id": ObjectId(self.id),
             "file_path": self.file_path,
-            "messages": [i.to_db_entry() for i in self.messages],
+            "messages": [i.serialise() for i in self.messages],
         }
         return ThreadEntry(**db_entry).model_dump()
     
