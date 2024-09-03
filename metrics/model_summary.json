@@ -264,4 +264,188 @@
     }
   ],
   "dataset_timestamp": 1722274538
+},{
+  "_id": {
+    "$oid": "66bcbde746e982ba921f75d8"
+  },
+  "timestamp": 1723627438,
+  "base_model_id": "google/gemma-2b",
+  "batch_size": 4,
+  "checkpoints": [
+    {
+      "timestamp": 1723627438,
+      "base_model_id": "google/gemma-2b",
+      "steps": 3500,
+      "message_count": 0,
+      "sentiment_metrics": {},
+      "url_metrics": {},
+      "attachment_metrics": {}
+    },
+    {
+      "timestamp": 1723627438,
+      "base_model_id": "google/gemma-2b",
+      "steps": 2000,
+      "message_count": 0,
+      "sentiment_metrics": {},
+      "url_metrics": {},
+      "attachment_metrics": {}
+    },
+    {
+      "timestamp": 1723627438,
+      "base_model_id": "google/gemma-2b",
+      "steps": 4000,
+      "message_count": 0,
+      "sentiment_metrics": {},
+      "url_metrics": {},
+      "attachment_metrics": {}
+    },
+    {
+      "timestamp": 1723627438,
+      "base_model_id": "google/gemma-2b",
+      "steps": 1000,
+      "message_count": 0,
+      "sentiment_metrics": {},
+      "url_metrics": {},
+      "attachment_metrics": {}
+    },
+    {
+      "timestamp": 1723627438,
+      "base_model_id": "google/gemma-2b",
+      "steps": 1500,
+      "message_count": 0,
+      "sentiment_metrics": {},
+      "url_metrics": {},
+      "attachment_metrics": {}
+    },
+    {
+      "timestamp": 1723627438,
+      "base_model_id": "google/gemma-2b",
+      "steps": 2500,
+      "message_count": 0,
+      "sentiment_metrics": {},
+      "url_metrics": {},
+      "attachment_metrics": {}
+    },
+    {
+      "timestamp": 1723627438,
+      "base_model_id": "google/gemma-2b",
+      "steps": 500,
+      "message_count": 0,
+      "sentiment_metrics": {},
+      "url_metrics": {},
+      "attachment_metrics": {}
+    },
+    {
+      "timestamp": 1723627438,
+      "base_model_id": "google/gemma-2b",
+      "steps": 3000,
+      "message_count": 0,
+      "sentiment_metrics": {},
+      "url_metrics": {},
+      "attachment_metrics": {}
+    }
+  ],
+  "dataset_timestamp": 1722274538,
+  "gradient_accumulation_steps": 4,
+  "learning_rate": 0.0002,
+  "quantization": "4bit",
+  "rank": 16
+},{
+  "_id": {
+    "$oid": "66c36cad29e63c8de761a23e"
+  },
+  "base_model_id": "google/gemma-2b",
+  "timestamp": 1724075462,
+  "batch_size": 4,
+  "checkpoints": [
+    {
+      "timestamp": 1724075462,
+      "base_model_id": "google/gemma-2b",
+      "steps": 2000,
+      "message_count": 84,
+      "sentiment_metrics": {
+        "accuracy": 0.14285714285714285
+      },
+      "url_metrics": {
+        "accuracy": 0.6190476190476191
+      },
+      "attachment_metrics": {
+        "accuracy": 0.5833333333333334,
+        "urls": {
+          "accuracy": 0.6190476190476191
+        },
+        "attachments": {
+          "accuracy": 0.5833333333333334
+        }
+      }
+    },
+    {
+      "timestamp": 1724075462,
+      "base_model_id": "google/gemma-2b",
+      "steps": 1000,
+      "message_count": 84,
+      "sentiment_metrics": {
+        "accuracy": 0.17857142857142858
+      },
+      "url_metrics": {
+        "accuracy": 0.6666666666666666
+      },
+      "attachment_metrics": {
+        "accuracy": 0.5,
+        "urls": {
+          "accuracy": 0.6666666666666666
+        },
+        "attachments": {
+          "accuracy": 0.5
+        }
+      }
+    },
+    {
+      "timestamp": 1724075462,
+      "base_model_id": "google/gemma-2b",
+      "steps": 1500,
+      "message_count": 84,
+      "sentiment_metrics": {
+        "accuracy": 0.14285714285714285
+      },
+      "url_metrics": {
+        "accuracy": 0.5952380952380952
+      },
+      "attachment_metrics": {
+        "accuracy": 0.5119047619047619,
+        "urls": {
+          "accuracy": 0.5952380952380952
+        },
+        "attachments": {
+          "accuracy": 0.5119047619047619
+        }
+      }
+    },
+    {
+      "timestamp": 1724075462,
+      "base_model_id": "google/gemma-2b",
+      "steps": 500,
+      "message_count": 84,
+      "sentiment_metrics": {
+        "accuracy": 0.14285714285714285
+      },
+      "url_metrics": {
+        "accuracy": 0.4880952380952381
+      },
+      "attachment_metrics": {
+        "accuracy": 0.5119047619047619,
+        "urls": {
+          "accuracy": 0.4880952380952381
+        },
+        "attachments": {
+          "accuracy": 0.5119047619047619
+        }
+      }
+    }
+  ],
+  "dataset_timestamp": 1722274538,
+  "gradient_accumulation_steps": 4,
+  "learning_rate": 0.0002,
+  "quantization": "4bit",
+  "rank": 16
 }]

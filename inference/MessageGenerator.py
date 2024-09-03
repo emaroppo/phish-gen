@@ -4,13 +4,13 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from peft import PeftModel
 import torch
 import outlines
-from prompt_generation.generate_prompt import (
+from inference.prompt_generation.generate_prompt import (
     generate_prompt,
     OutputMessage,
     PromptOutputPair,
 )
 from functools import cached_property
-from presentation.classes.FinetunedModel import FinetunedModel
+from finetuning.sft.classes.FinetunedModel import FinetunedModel
 
 
 class MessageGenerator(BaseModel):
