@@ -2,7 +2,6 @@ from bson import ObjectId
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any, Union
 from data.QueryManager import query_manager
-import re
 
 
 class EmailMessageEntry(BaseModel):
@@ -46,7 +45,6 @@ class EmailMessage(BaseModel):
             if field in data:
                 data[field] = str(data[field])
 
-        # update _id key to id
         if "_id" in data:
             data["id"] = data.pop("_id")
 
@@ -60,7 +58,6 @@ class EmailMessage(BaseModel):
         response: ObjectId = None,
         forwarded_by: ObjectId = None,
     ):
-        # assuming text holds a string containing the email thread
         message_doc = dict()
         message_doc["id"] = str(ObjectId())
         message_doc["body"] = text

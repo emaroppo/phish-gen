@@ -41,24 +41,6 @@ class EmailThread(BaseModel):
         return cls(**data)
 
     @classmethod
-    def from_db(cls, _id, db_name, collection):
-        # retrieve the thread from the database
-
-        thread_doc = query_manager.retrieve_entry(
-            {"_id": _id}, db_name=db_name, collection=collection
-        )
-        thread_doc["db_name"] = db_name
-        thread_doc["collection"] = collection
-        thread_doc["id"] = str(thread_doc.pop("_id"))
-        thread_doc["id"] = str(thread_doc["id"])
-        for i in thread_doc["messages"]:
-            i["id"] = str(i["_id"])
-            i["id"] = str(i["id"])
-            del i["_id"]
-
-        return cls(**thread_doc)
-
-    @classmethod
     def from_text(cls, text, file_path, db_name, collection):
         # assuming text holds a string containing the email thread
         thread_doc = dict()
@@ -72,7 +54,6 @@ class EmailThread(BaseModel):
         message["is_main"] = True
         thread_doc["messages"].append(message)
 
-        # rename _id to id and convert to string for each message
         for i in thread_doc["messages"]:
             i["id"] = str(i.pop("_id"))
 
@@ -109,8 +90,3 @@ class EmailThread(BaseModel):
 
     def __str__(self):
         return f"EmailThread({self.id}, {self.file_path})"
-
-    
-
-
-# Path: data/EmailMessage.py
