@@ -1,6 +1,6 @@
 from bson import ObjectId
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any, Union, Literal
 from data.QueryManager import query_manager
 
 
@@ -39,7 +39,7 @@ class EmailMessage(BaseModel):
     word_count: Optional[int] = None
 
     @classmethod
-    def deserialize(cls, data: Dict[str, Any]):
+    def deserialize(cls, data: Dict[str, Any]) -> "EmailMessage":
         object_id_fields = ["_id", "response", "forwarded_by"]
         for field in object_id_fields:
             if field in data:
@@ -76,7 +76,7 @@ class EmailMessage(BaseModel):
         entity_value: str,
         start: int,
         end: int,
-        detection_method: str = "manual",
+        detection_method: Literal["auto", "manual"] = "manual",
     ):
         if self.entities is None:
             self.entities = dict()
@@ -87,10 +87,10 @@ class EmailMessage(BaseModel):
 
         self.entities[detection_method][entity_type].append((entity_value, start, end))
 
-    def add_sentiment(self, sentiment: Dict[str, float]):
+    def add_sentiment(self, sentiment: Dict[str, float])-> None:
         self.sentiment = sentiment
 
-    def add_topic(self, topic: List[List[Union[str, float]]]):
+    def add_topic(self, topic: List[List[Union[str, float]]])-> None:
         self.topic = topic
 
     def serialise(self) -> EmailMessageEntry:

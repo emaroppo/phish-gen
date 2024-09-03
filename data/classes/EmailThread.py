@@ -24,7 +24,7 @@ class EmailThread(BaseModel):
     @classmethod
     def deserialize(
         cls, data, db_name: str = None, collection: str = None
-    ):  # may need to add db_name and collection fields to properly deserialize?
+    ) -> "EmailThread":
         object_id_fields = ["_id"]
         for field in object_id_fields:
             if field in data:
@@ -41,7 +41,7 @@ class EmailThread(BaseModel):
         return cls(**data)
 
     @classmethod
-    def from_text(cls, text, file_path, db_name, collection):
+    def from_text(cls, text, file_path, db_name, collection)-> "EmailThread":
         # assuming text holds a string containing the email thread
         thread_doc = dict()
         thread_doc["_id"] = str(ObjectId())
@@ -73,20 +73,22 @@ class EmailThread(BaseModel):
         }
         return ThreadEntry(**db_entry).model_dump()
     
-    def save(self, target_collection: Union[str, None] = None):
+    def save(self, target_collection: Union[str, None] = None)-> bool:
 
         if target_collection is None:
             query_manager.connection[self.db_name][self.collection].update_one(
                 {"_id": ObjectId(self.id)},
-                {"$set": self.to_db_entry()},
+                {"$set": self.serialise()},
                 upsert=True,
             )
         else:
             query_manager.connection[self.db_name][target_collection].update_one(
                 {"_id": ObjectId(self.id)},
-                {"$set": self.to_db_entry()},
+                {"$set": self.serialise()},
                 upsert=True,
             )
+        
+        return True
 
     def __str__(self):
         return f"EmailThread({self.id}, {self.file_path})"
