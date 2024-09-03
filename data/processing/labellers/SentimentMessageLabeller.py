@@ -1,11 +1,15 @@
-from offline_finetuning.auto_labelling.MessageLabeller import MessageLabeller
+from data.processing.labellers.MessageLabeller import MessageLabeller
 
 
 class SentimentMessageLabeller(MessageLabeller):
 
-    def label_message(self, message_body):
+    def label_message(self, message_body, batch_size=1):
         labels = self.classifier(
-            message_body, max_length=512, truncation=True, padding="max_length"
+            message_body,
+            max_length=512,
+            truncation=True,
+            padding="max_length",
+            batch_size=batch_size,
         )
         if type(message_body) == str:
             return labels[0]

@@ -30,7 +30,7 @@ class MessageLabeller(BaseModel):
         return classifier
 
     def label_message(self, message_body: str):
-        return self.classifier(message_body)
+        return self.classifier(message_body, batch_size=1)
 
     def generate_validation_excel(self, unique_values, file_path):
         df = pd.DataFrame(unique_values, columns=["value"])

@@ -1,7 +1,7 @@
 from typing import Any
-from offline_finetuning.auto_labelling.MessageLabeller import MessageLabeller
+from data.processing.labellers.MessageLabeller import MessageLabeller
 from transformers import AutoModelForTokenClassification, AutoTokenizer, pipeline
-from offline_finetuning.common_classes.QueryManager import query_manager
+from data.QueryManager import query_manager
 from pydantic import computed_field
 import torch
 from functools import cached_property
@@ -30,28 +30,49 @@ class NERMessageLabeller(MessageLabeller):
             device=device,
         )
 
-    def label_message(self, message_body: str):
-        labels = self.classifier(message_body)
+    def label_message(self, message_body, batch_size=1):
+        labels = self.classifier(message_body, batch_size=batch_size)
+        if type(message_body) == str:
+            if labels:
+                # compose the tokens back into word
+                words = list()
+                first_label = labels.pop(0)
+                word_start = first_label["start"]
+                word_end = first_label["end"]
+                word_label = first_label["entity"].split("-")[1]
 
-        if labels:
-            # compose the tokens back into word
-            words = list()
-            first_label = labels.pop(0)
-            word_start = first_label["start"]
-            word_end = first_label["end"]
-            word_label = first_label["entity"].split("-")[1]
+                for label in labels:
 
-            for label in labels:
+                    if label["entity"][0] == "I":
+                        word_end = label["end"]
+                    elif label["entity"][0] == "B":
+                        words.append((word_start, word_end, word_label))
+                        word_start = label["start"]
+                        word_end = label["end"]
+                        word_label = label["entity"].split("-")[1]
+                return words
+        elif type(message_body) == list:
+            predictions = list()
+            for prediction in labels:
+                if prediction:
 
-                if label["entity"][0] == "I":
-                    word_end = label["end"]
-                elif label["entity"][0] == "B":
-                    words.append((word_start, word_end, word_label))
-                    word_start = label["start"]
-                    word_end = label["end"]
-                    word_label = label["entity"].split("-")[1]
+                    words = list()
+                    first_label = prediction.pop(0)
+                    word_start = first_label["start"]
+                    word_end = first_label["end"]
+                    word_label = first_label["entity"].split("-")[1]
 
-            return words
+                    for label in prediction:
+
+                        if label["entity"][0] == "I":
+                            word_end = label["end"]
+                        elif label["entity"][0] == "B":
+                            words.append((word_start, word_end, word_label))
+                            word_start = label["start"]
+                            word_end = label["end"]
+                            word_label = label["entity"].split("-")[1]
+                    predictions.append(words)
+            return predictions
 
     def generate_validation_excel(
         self,

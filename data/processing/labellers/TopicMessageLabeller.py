@@ -1,8 +1,8 @@
-from offline_finetuning.auto_labelling.topic_modelling.TopicModelling import (
+from data.processing.labellers.topic_modelling.TopicModelling import (
     TopicModelling,
 )
 from functools import cached_property
-from offline_finetuning.auto_labelling.MessageLabeller import MessageLabeller
+from data.processing.labellers.MessageLabeller import MessageLabeller
 from pydantic import computed_field
 from typing import Any
 
