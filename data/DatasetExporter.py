@@ -1,11 +1,9 @@
 from pydantic import BaseModel
 from typing import List
 from data.QueryManager import query_manager
-from data.EmailMessage import EmailMessage
-from data.EmailThread import EmailThread
-from metrics.classes.DataSample import DataSample
+from data.classes.EmailMessage import EmailMessage
+from data.classes.DataSample import DataSample
 from inference.prompt_generation.generate_prompt import generate_prompt_output_pair
-from tqdm import tqdm
 from datasets import Dataset
 import os
 import json
