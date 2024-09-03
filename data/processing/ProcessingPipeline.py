@@ -1,7 +1,8 @@
 from pydantic import BaseModel
-from typing import List, Optional
-from offline_finetuning.common_classes.EmailThread import EmailThread
-from offline_finetuning.common_classes.EmailMessage import EmailMessage
+from typing import List, Dict, Union
+from data.classes.EmailThread import EmailThread
+from data.classes.DataSample import DataSample
+from data.classes.EmailMessage import EmailMessage
 import re
 import json
 from tqdm import tqdm
@@ -10,16 +11,26 @@ from data.processing.labellers.SentimentMessageLabeller import (
     SentimentMessageLabeller,
 )
 from data.processing.labellers.TopicMessageLabeller import TopicMessageLabeller
-from offline_finetuning.common_classes.QueryManager import query_manager
+from data.QueryManager import query_manager
 
 
-with open("offline_finetuning/data_processing/enron/regex/placeholders.json", "r") as f:
+with open("data/regex/placeholders.json", "r") as f:
     placeholders = json.load(f)
 
 
 def message_data(messages: List[EmailMessage]):
     for message in messages:
         yield message.body
+
+
+def get_sentiment(
+    sentiment: List[Dict[str, Union[str, int, float]]], max_sentiment: int = 2
+) -> List[str]:
+    extracted_sentiment = [
+        i["label"] for i in sentiment if i["score"] > 1 / (max_sentiment + 1)
+    ]
+
+    return extracted_sentiment
 
 
 class ProcessingPipeline(BaseModel):
@@ -186,6 +197,7 @@ class ProcessingPipeline(BaseModel):
         return message_list
 
     def insert_entity_placeholders(
+        self,
         message_list: List[EmailMessage],
         entity_types: List[str] = [
             "URL",
@@ -203,13 +215,15 @@ class ProcessingPipeline(BaseModel):
         for message in message_list:
             entity_labels = list()
             for entity_type in entity_types:
-                if manual and entity_type in message.entities["manual"]:
-                    entity_labels.extend(
-                        [
-                            (label, entity_type)
-                            for label in message.entities["manual"][entity_type]
-                        ]
-                    )
+                if manual and "manual" in message.entities:
+                    if entity_type in message.entities["manual"]:
+                        entity_labels.extend(
+                            [
+                                (label, entity_type)
+                                for label in message.entities["manual"][entity_type]
+                            ]
+                        )
+
                 if auto and entity_type in message.entities["auto"]:
                     entity_labels.extend(
                         [
@@ -225,11 +239,55 @@ class ProcessingPipeline(BaseModel):
             message.body = body
         return message_list
 
+    def messages_to_datasamples(self, messages: List[EmailMessage]) -> List[DataSample]:
+        datasamples = list()
+        for message in messages:
+            if message.is_html or message.word_count > 1000 or message.headers is None:
+                continue
+            urls = False
+            attachments = False
+            sentiment = get_sentiment(message.sentiment)
+            attachment_formats = None
+
+            if message.entities is not None:
+                if "manual" in message.entities:
+                    if "URL" in message.entities["manual"]:
+                        urls = True
+                    if "ATTACHMENT" in message.entities["manual"]:
+                        attachments = True
+                        if message.attachments_format and not all(
+                            [
+                                attachment
+                                in [
+                                    "pdf",
+                                    "doc",
+                                    "docx",
+                                    "xls",
+                                    "xlsx",
+                                    "ppt",
+                                    "pptx",
+                                ]
+                                for attachment in message.attachments_format
+                            ]
+                        ):
+                            continue
+
+            datasample = DataSample(
+                body=message.body,
+                attachments=attachments,
+                subject=message.headers["Subject"],
+                urls=urls,
+                sentiment=sentiment,
+                attachment_formats=attachment_formats,
+            )
+            datasamples.append(datasample)
+        return datasamples
+
     def run_features_pipeline(self, collections: List[str]):
 
         for collection in collections:
             # find all threads
-            """data = query_manager.connection[self.db][collection].find()
+            data = query_manager.connection[self.db][collection].find()
             thread_list = [
                 EmailThread.deserialize(thread, db_name=self.db, collection=collection)
                 for thread in data
@@ -276,7 +334,7 @@ class ProcessingPipeline(BaseModel):
             )
 
             for message in tqdm(message_list):
-                message.save(db_name=self.db, target_collection=collection)"""
+                message.save(db_name=self.db, target_collection=collection)
 
             for k, v in tqdm(placeholders.items()):
                 for regex in v["regex"]:
@@ -322,5 +380,30 @@ class ProcessingPipeline(BaseModel):
             thread_list = self.remove_overlapping_labels(thread_list)
             for thread in tqdm(thread_list):
                 thread.save()
+
+        return True
+
+    def run_pipeline(self, source_collections: List[str], target_collection: str):
+        # self.run_features_pipeline(source_collections)
+        for collection in source_collections:
+            # retrieve all messages from the collection
+            pipeline = [{"$project": {"messages": 1}}, {"$unwind": "$messages"}]
+            messages = query_manager.connection[self.db][collection].aggregate(pipeline)
+            messages = [
+                EmailMessage.deserialize(message["messages"]) for message in messages
+            ]
+
+            print(messages[-1])
+
+            # insert entity placeholders
+            messages = self.insert_entity_placeholders(messages)
+
+            messages = self.messages_to_datasamples(messages)
+
+            messages = [message.serialise() for message in messages]
+
+            query_manager.connection["datasets"][target_collection].insert_many(
+                messages
+            )
 
         return True
