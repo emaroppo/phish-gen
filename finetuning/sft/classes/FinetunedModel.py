@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import List, Dict, Optional
-from presentation.classes.FinetunedCheckpoint import FinetunedCheckpoint
-from offline_finetuning.common_classes.QueryManager import query_manager
+from finetuning.sft.classes.FinetunedCheckpoint import FinetunedCheckpoint
+from data.QueryManager import query_manager
 
 
 class FinetunedModel(BaseModel):
@@ -14,6 +14,8 @@ class FinetunedModel(BaseModel):
     gradient_accumulation_steps: int
     learning_rate: float
     checkpoints: Optional[List[FinetunedCheckpoint]] = list()
+    custom_tokens: Optional[List[str]] = None
+    related_tokens_dict: Optional[Dict[str, List[str]]] = None
 
     @classmethod
     def deserialize(cls, data):

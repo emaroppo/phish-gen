@@ -1,17 +1,17 @@
 from pydantic import BaseModel
-from presentation.classes.FinetunedModel import FinetunedModel
-from presentation.classes.FinetuningDataset import FinetuningDataset
-import offline_finetuning.training.lora_finetuning as finetune
+from finetuning.sft.classes.FinetunedModel import FinetunedModel
+from finetuning.sft.classes.FinetuningDataset import FinetuningDataset
+import finetuning.sft.lora_finetuning as finetune
 from datetime import datetime
 import os
 from bson import ObjectId
-from typing import List
+from typing import List, Dict, Union, Literal
 from inference.MessageGenerator import MessageGenerator
-from offline_finetuning.auto_labelling.SentimentMessageLabeller import (
+from data.processing.labellers.SentimentMessageLabeller import (
     SentimentMessageLabeller,
 )
 from tqdm import tqdm
-from offline_finetuning.common_classes.QueryManager import query_manager
+from data.QueryManager import query_manager
 
 
 class Experiment(BaseModel):
@@ -33,14 +33,24 @@ class Experiment(BaseModel):
     @classmethod
     def run_experiment(
         cls,
-        dataset_timestamp,
-        base_model_id,
-        rank,
-        epochs,
-        quantization,
-        batch_size,
-        gradient_accumulation_steps,
-        learning_rate,
+        dataset_timestamp: int,
+        base_model_id: str,
+        rank: int = 16,
+        epochs: int = 2,
+        quantization: Union[Literal["4bit", "8bit"], None] = None,
+        batch_size: int = 4,
+        gradient_accumulation_steps: int = 4,
+        learning_rate: float = 2e-4,
+        custom_tokens: List[str] = [
+            "<URL>",
+            "<ATTACHMENT>",
+            "<PHONE>",
+            "<DATE>",
+            "<EMAIL>",
+            "<PER>",
+            "<ORG>",
+        ],
+        related_tokens_dict: Dict[str, List[str]] = None,
     ):
         model_timestamp = int(datetime.now().timestamp())
         # Load dataset
@@ -54,6 +64,8 @@ class Experiment(BaseModel):
             batch_size=batch_size,
             gradient_accumulation_steps=gradient_accumulation_steps,
             learning_rate=learning_rate,
+            custom_tokens=custom_tokens,
+            related_tokens_dict=related_tokens_dict,
         )
 
         model = finetune.train_lora(
@@ -66,6 +78,8 @@ class Experiment(BaseModel):
             batch_size=batch_size,
             gradient_accumulation_steps=gradient_accumulation_steps,
             learning_rate=learning_rate,
+            custom_tokens=custom_tokens,
+            related_tokens_dict=related_tokens_dict,
         )
 
         for checkpoint in os.listdir(

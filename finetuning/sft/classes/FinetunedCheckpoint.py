@@ -1,8 +1,8 @@
 from pydantic import BaseModel
 from typing import List, Dict, Optional
 from bson import ObjectId
-from presentation.classes.ModelOutput import ModelOutput
-from offline_finetuning.common_classes.QueryManager import query_manager
+from finetuning.sft.classes.ModelOutput import ModelOutput
+from data.QueryManager import query_manager
 import pandas as pd
 
 # import message labelers

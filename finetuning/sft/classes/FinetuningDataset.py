@@ -1,8 +1,8 @@
 from pydantic import BaseModel
 from typing import Dict, List
 from typing import Optional, List
-from presentation.classes.DataSample import DataSample
-from offline_finetuning.common_classes.QueryManager import query_manager
+from data.classes.DataSample import DataSample
+from data.QueryManager import query_manager
 
 
 class FinetuningDataset(BaseModel):
