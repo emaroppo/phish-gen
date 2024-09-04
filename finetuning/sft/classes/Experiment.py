@@ -1,9 +1,6 @@
 from pydantic import BaseModel
 from finetuning.sft.classes.FinetunedModel import FinetunedModel
 from finetuning.sft.classes.FinetuningDataset import FinetuningDataset
-import finetuning.sft.lora_finetuning as finetune
-from datetime import datetime
-import os
 from bson import ObjectId
 from typing import List, Dict, Union, Literal
 from inference.MessageGenerator import MessageGenerator
@@ -52,29 +49,15 @@ class Experiment(BaseModel):
         ],
         related_tokens_dict: Dict[str, List[str]] = None,
     ):
-        model_timestamp = int(datetime.now().timestamp())
-        # Load dataset
-        dataset_path = f"offline_finetuning/datasets/transformers/{dataset_timestamp}"
-        finetuned_model = FinetunedModel(
-            timestamp=model_timestamp,
-            dataset_timestamp=dataset_timestamp,
-            base_model_id=base_model_id,
-            rank=rank,
-            quantization=quantization,
-            batch_size=batch_size,
-            gradient_accumulation_steps=gradient_accumulation_steps,
-            learning_rate=learning_rate,
-            custom_tokens=custom_tokens,
-            related_tokens_dict=related_tokens_dict,
-        )
+        dataset = FinetuningDataset.from_db(dataset_timestamp)
 
-        model = finetune.train_lora(
-            dataset_path=dataset_path,
-            output_dir=f"offline_finetuning/models/{base_model_id.split('/')[-1]}/{model_timestamp}",
+        # Load dataset
+        finetuned_model = FinetunedModel.train_model(
+            dataset=dataset,
             model_id=base_model_id,
             quantized=quantization,
-            epochs=epochs,
             rank=rank,
+            epochs=epochs,
             batch_size=batch_size,
             gradient_accumulation_steps=gradient_accumulation_steps,
             learning_rate=learning_rate,
@@ -82,25 +65,14 @@ class Experiment(BaseModel):
             related_tokens_dict=related_tokens_dict,
         )
 
-        for checkpoint in os.listdir(
-            f"offline_finetuning/models/{base_model_id.split('/')[-1]}/{model_timestamp}"
-        ):
-            if os.path.isdir(
-                f"offline_finetuning/models/{base_model_id.split('/')[-1]}/{model_timestamp}/{checkpoint}"
-            ):
-                n_steps = int(checkpoint.split("-")[1])
-                finetuned_model.add_checkpoint(
-                    timestamp=model_timestamp,
-                    base_model_id=base_model_id,
-                    steps=n_steps,
-                )
-
-        dataset = FinetuningDataset.from_db(dataset_timestamp)
-        finetuned_model.save()
-        return cls(
+        experiment = cls(
             finetuned_model=finetuned_model,
             finetuning_dataset=dataset,
         )
+
+        experiment.evaluate_model_outputs()
+
+        return experiment
 
     @classmethod
     def generate_evaluation_prompts(
@@ -135,37 +107,8 @@ class Experiment(BaseModel):
         return sample_args
 
     def continue_experiment(self, epochs):
-        # order checkpoint by steps
-        self.finetuned_model.checkpoints.sort(key=lambda x: x.steps)
-        print(self.finetuned_model.checkpoints[-1].steps)
-
-        model = finetune.train_lora(
-            dataset_path=f"offline_finetuning/datasets/transformers/{self.finetuned_model.dataset_timestamp}",
-            output_dir=f"offline_finetuning/models/{self.finetuned_model.base_model_id.split('/')[-1]}/{self.finetuned_model.timestamp}",
-            model_id=self.finetuned_model.base_model_id,
-            quantized=self.finetuned_model.quantization,
-            epochs=epochs,
-            rank=self.finetuned_model.rank,
-            batch_size=self.finetuned_model.batch_size,
-            gradient_accumulation_steps=self.finetuned_model.gradient_accumulation_steps,
-            learning_rate=self.finetuned_model.learning_rate,
-            resume_from_checkpoint=True,
-        )
-
-        for checkpoint in os.listdir(
-            f"offline_finetuning/models/{self.finetuned_model.base_model_id.split('/')[-1]}/{self.finetuned_model.timestamp}"
-        ):
-            if os.path.isdir(
-                f"offline_finetuning/models/{self.finetuned_model.base_model_id.split('/')[-1]}/{self.finetuned_model.timestamp}/{checkpoint}"
-            ):
-                n_steps = int(checkpoint.split("-")[1])
-                self.finetuned_model.add_checkpoint(
-                    timestamp=self.finetuned_model.timestamp,
-                    base_model_id=self.finetuned_model.base_model_id,
-                    steps=n_steps,
-                )
-
-        self.finetuned_model.save()
+        self.finetuned_model.continue_training(epochs=epochs)
+        self.evaluate_model_outputs()
 
     def generate_evaluation_messages(self, checkpoint):
         generator = MessageGenerator(

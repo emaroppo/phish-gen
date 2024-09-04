@@ -17,6 +17,7 @@ class FinetunedCheckpoint(BaseModel):
     sentiment_metrics: Optional[Dict[str, float]] = dict()
     url_metrics: Optional[Dict[str, float]] = dict()
     attachment_metrics: Optional[Dict[str, float]] = dict()
+    loss: Optional[float] = None
 
     @classmethod
     def deserialize(cls, data, include_messages=False):

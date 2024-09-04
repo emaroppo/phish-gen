@@ -3,6 +3,7 @@ from typing import Dict, List
 from typing import Optional, List
 from data.classes.DataSample import DataSample
 from data.QueryManager import query_manager
+from datasets import load_from_disk
 
 
 class FinetuningDataset(BaseModel):
@@ -82,6 +83,17 @@ class FinetuningDataset(BaseModel):
                     self.entity_counts[entity] += count
                 else:
                     self.entity_counts[entity] = count
+
+    def load_finetuning_dataset(self, tokenizer):
+        dataset = load_from_disk(f"data/datasets_processed/training/{self.timestamp}")
+
+        datase = dataset.map(
+            lambda samples: tokenizer(
+                samples["text"], padding="max_length", truncation=True
+            ),
+        ).shuffle()
+
+        return dataset
 
     def serialise(self, include_samples=False):
         serialised = {
