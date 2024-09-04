@@ -1,5 +1,19 @@
 from data.processing.labellers.NERMessageLabeller import NERMessageLabeller
 from finetuning.sft.classes.Experiment import Experiment
+from typing import List, Dict
+
+
+def queue_experiments(arg_list: List[Dict]):
+    experiments = list()
+    for arg_dict in arg_list:
+        experiment = Experiment.run_experiment(
+            **arg_dict,
+            dataset_timestamp=1722274538,
+            base_model_id="google/gemma-2b",
+        )
+        experiments.append(experiment)
+    return experiments
+
 
 def entity_validation(
     classifier_id: str = "dslim/bert-base-NER",
@@ -11,33 +25,62 @@ def entity_validation(
         collections=collections, file_path=file_path
     )
 
+
 if __name__ == "__main__":
 
-    related_tokens_dict = {
-        "<URL>": ["<URL>"],
-        "<ATTACHMENT>": ["<ATTACHMENT>"],
-        "<PHONE>": ["<PHONE>"],
-        "<DATE>": ["<DATE>"],
-        "<EMAIL>": ["<EMAIL>"],
-        "<PER>": ["<PER>"],
-        "<ORG>": ["<ORG>"],
+    exp1 = {
+        "related_tokens_dict": {
+            "<URL>": ["<URL>"],
+            "<ATTACHMENT>": ["<ATTACHMENT>"],
+            "<PHONE>": ["<PHONE>"],
+            "<DATE>": ["<DATE>"],
+            "<EMAIL>": ["<EMAIL>"],
+            "<PER>": ["<PER>"],
+            "<ORG>": ["<ORG>"],
+        }
     }
 
-    experiment = Experiment.run_experiment(
-        dataset_timestamp=1722274538,
-        base_model_id="google/gemma-2b",
-        quantization="4bit",
-        epochs=2,
-        custom_tokens=[
-            "<URL>",
-            "<ATTACHMENT>",
-            "<PHONE>",
-            "<DATE>",
-            "<EMAIL>",
-            "<PER>",
-            "<ORG>",
-        ],
-        related_tokens_dict=related_tokens_dict,
-    )
+    exp2 = {
+        "related_tokens_dict": {
+            "<URL>": ["<URL>", "http://", "url"],
+            "<ATTACHMENT>": [
+                "<ATTACHMENT>",
+                "attachment",
+                "file",
+                "doc",
+                "xls",
+                "ppt",
+                "pdf",
+            ],
+            "<PHONE>": ["<PHONE>", "phone", "number"],
+            "<DATE>": ["<DATE>", "date", "time"],
+            "<EMAIL>": ["<EMAIL>", "email", "mail"],
+            "<PER>": ["<PER>", "person", "individual"],
+            "<ORG>": ["<ORG>", "organization", "company"],
+        }
+    }
 
-    experiment.evaluate_model_outputs()
+    exp3 = {
+        "related_tokens_dict": {
+            "<URL>": ["<URL>", "placeholder", "http://", "url"],
+            "<ATTACHMENT>": [
+                "<ATTACHMENT>",
+                "placeholder",
+                "attachment",
+                "file",
+                "doc",
+                "xls",
+                "ppt",
+                "pdf",
+            ],
+            "<PHONE>": ["<PHONE>", "placeholder", "phone", "number"],
+            "<DATE>": ["<DATE>", "placeholder", "date", "time"],
+            "<EMAIL>": ["<EMAIL>", "placeholder", "email", "mail"],
+            "<PER>": ["<PER>", "placeholder", "person", "individual"],
+            "<ORG>": ["<ORG>", "placeholder", "organization", "company"],
+        }
+    }
+
+    arg_list = [exp1, exp2, exp3]
+
+    experiments = queue_experiments(arg_list)

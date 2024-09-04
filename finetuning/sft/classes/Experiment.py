@@ -34,7 +34,7 @@ class Experiment(BaseModel):
         base_model_id: str,
         rank: int = 16,
         epochs: int = 2,
-        quantization: Union[Literal["4bit", "8bit"], None] = None,
+        quantization: Union[Literal["4bit", "8bit"], None] = "4bit",
         batch_size: int = 4,
         gradient_accumulation_steps: int = 4,
         learning_rate: float = 2e-4,
