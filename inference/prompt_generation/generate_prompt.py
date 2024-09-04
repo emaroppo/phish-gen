@@ -26,10 +26,8 @@ def generate_prompt(
 ) -> str:
     prompt = dict()
     prompt["subject"] = subject
-    if urls:
-        prompt["urls"] = urls
-    if attachments:
-        prompt["attachments"] = attachments
+    prompt["urls"] = urls
+    prompt["attachments"] = attachments
 
     if sentiment:
 
