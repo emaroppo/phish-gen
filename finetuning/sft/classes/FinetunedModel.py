@@ -10,13 +10,13 @@ from transformers import (
     TrainingArguments,
     Trainer,
     DataCollatorForLanguageModeling,
+    BitsAndBytesConfig,
 )
 from peft import LoraConfig, get_peft_model
 from transformers.trainer_callback import TrainerCallback
 import torch
 import json
 from finetuning.sft.classes.FinetuningDataset import FinetuningDataset
-from bitsandbytes import BitsAndBytesConfig
 
 
 class LossLoggerCallback(TrainerCallback):
@@ -29,7 +29,8 @@ class LossLoggerCallback(TrainerCallback):
         if logs is not None and "loss" in logs:
             self.losses.append({"step": state.global_step, "loss": logs["loss"]})
             self.finetuned_model.loss_history.append(logs["loss"])
-            self.finetuned_model.save()
+            if state.global_step % 100 == 0:
+                self.finetuned_model.save()
             with open(self.log_file, "w") as f:
                 json.dump(self.losses, f)
 
@@ -64,24 +65,20 @@ class FinetunedModel(BaseModel):
     checkpoints: Optional[List[FinetunedCheckpoint]] = list()
     custom_tokens: Optional[List[str]] = None
     related_tokens_dict: Optional[Dict[str, List[str]]] = None
-    loss_history: Optional[List] = None
+    loss_history: Optional[List] = list()
 
     @computed_field
     @cached_property
-    def bnb_config(self):
+    def bnb_config(self) -> Optional[BitsAndBytesConfig]:
         if self.quantization == "4bit":
             return BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=torch.float16,
-                selective_precision={"critical_layers": "8bit"},
             )
         elif self.quantization == "8bit":
             return BitsAndBytesConfig(
                 load_in_8bit=True,
                 bnb_8bit_quant_type="nf8",
-                bnb_8bit_compute_dtype=torch.float32,
-                selective_precision={"critical_layers": "8bit"},
             )
         else:
             return None
@@ -141,6 +138,7 @@ class FinetunedModel(BaseModel):
         cls,
         dataset: FinetuningDataset,
         base_model_id: str,
+        epochs: int = 2,
         rank: int = 16,
         quantization: Union[Literal["4bit", "8bit"], None] = "4bit",
         batch_size: int = 4,
@@ -149,7 +147,9 @@ class FinetunedModel(BaseModel):
         custom_tokens: Union[List[str], Dict[str, List[str]], None] = None,
         save_steps: int = 500,
     ):
-
+        if type(custom_tokens) == dict:
+            custom_tokens_dict = custom_tokens
+            custom_tokens = custom_tokens_dict.keys()
         # Create a new finetuned model entry in the database
         timestamp = int(datetime.now().timestamp())
         finetuned_model = FinetunedModel(
@@ -168,8 +168,9 @@ class FinetunedModel(BaseModel):
         # Load the base model
         if finetuned_model.quantization:
             bnb_config = finetuned_model.bnb_config
+            print(bnb_config)
             model = AutoModelForCausalLM.from_pretrained(
-                base_model_id, config=bnb_config, device_map="auto"
+                base_model_id, quantization_config=bnb_config, device_map="auto"
             )
         else:
             model = AutoModelForCausalLM.from_pretrained(
@@ -188,8 +189,8 @@ class FinetunedModel(BaseModel):
                 FinetunedModel.initialize_new_embeddings(
                     model,
                     tokenizer,
-                    custom_tokens=custom_tokens.keys(),
-                    related_tokens_dict=custom_tokens,
+                    custom_tokens=custom_tokens,
+                    related_tokens_dict=custom_tokens_dict,
                 )
 
         # Load dataset
@@ -207,7 +208,7 @@ class FinetunedModel(BaseModel):
 
         config = LoraConfig(
             task_type="CAUSAL_LM",
-            rank=rank,
+            r=rank,
         )
         model = get_peft_model(model, config)
 
@@ -218,7 +219,7 @@ class FinetunedModel(BaseModel):
         args = TrainingArguments(
             per_device_train_batch_size=batch_size,
             gradient_accumulation_steps=gradient_accumulation_steps,
-            num_train_epochs=1,
+            num_train_epochs=epochs,
             save_steps=save_steps,
             learning_rate=learning_rate,
             fp16=True,
@@ -226,15 +227,13 @@ class FinetunedModel(BaseModel):
             output_dir=f"finetuning/sft/models/{base_model_id.split('/')[-1]}/{timestamp}",
         )
 
-        callbacks = (
-            [
-                LossLoggerCallback(
-                    finetuned_model,
-                    f"finetuning/sft/models/{base_model_id.split('/')[-1]}/{timestamp}/losses.json",
-                ),
-                CheckpointCallback(finetuned_model),
-            ],
-        )
+        callbacks = [
+            LossLoggerCallback(
+                finetuned_model,
+                f"finetuning/sft/models/{base_model_id.split('/')[-1]}/{timestamp}/losses.json",
+            ),
+            CheckpointCallback(finetuned_model),
+        ]
 
         trainer = Trainer(
             model=model,

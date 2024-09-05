@@ -54,15 +54,14 @@ class Experiment(BaseModel):
         # Load dataset
         finetuned_model = FinetunedModel.train_model(
             dataset=dataset,
-            model_id=base_model_id,
-            quantized=quantization,
+            base_model_id=base_model_id,
+            quantization=quantization,
             rank=rank,
             epochs=epochs,
             batch_size=batch_size,
             gradient_accumulation_steps=gradient_accumulation_steps,
             learning_rate=learning_rate,
-            custom_tokens=custom_tokens,
-            related_tokens_dict=related_tokens_dict,
+            custom_tokens=related_tokens_dict,
         )
 
         experiment = cls(

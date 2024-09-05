@@ -87,9 +87,9 @@ class FinetuningDataset(BaseModel):
     def load_finetuning_dataset(self, tokenizer):
         dataset = load_from_disk(f"data/datasets_processed/training/{self.timestamp}")
 
-        datase = dataset.map(
+        dataset = dataset.map(
             lambda samples: tokenizer(
-                samples["text"], padding="max_length", truncation=True
+                samples["text"], padding="max_length", truncation=True, max_length=512
             ),
         ).shuffle()
 
