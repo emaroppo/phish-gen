@@ -386,14 +386,33 @@ class ProcessingPipeline(BaseModel):
     def run_pipeline(self, source_collections: List[str], target_collection: str):
         # self.run_features_pipeline(source_collections)
         for collection in source_collections:
-            # retrieve all messages from the collection
-            pipeline = [{"$project": {"messages": 1}}, {"$unwind": "$messages"}]
+
+            #filter samples            
+            match_dict = {
+                "messages.headers": {"$exists": True},
+                "messages.is_html": {"$ne": True},
+                "messages.word_count": {"$lte": 448},
+            }
+
+            pipeline = [{"$project": {"messages": 1}}, {"$unwind": "$messages"}, {"$match": match_dict}]
             messages = query_manager.connection[self.db][collection].aggregate(pipeline)
             messages = [
                 EmailMessage.deserialize(message["messages"]) for message in messages
             ]
 
-            print(messages[-1])
+            # remove messages containing attachments formats other than pdf, doc, docx, xls, xlsx, ppt, pptx
+            messages = [
+                message
+                for message in messages
+                if not message.attachments_format
+                or all(
+                    [
+                        attachment
+                        in ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx"]
+                        for attachment in message.attachments_format
+                    ]
+                )
+            ]
 
             # insert entity placeholders
             messages = self.insert_entity_placeholders(messages)
