@@ -145,6 +145,22 @@ class CleaningPipeline(BaseModel):
                         message.body = re.sub(footer_pattern, "", message.body)
 
         return thread_list
+    
+    import re
+
+    def clean_bodies(self, thread_list: List[EmailThread]):
+        # Replace [IMAGE] with ''
+        for message in thread_list:
+            message.body = message.body.replace("[IMAGE]", "")
+            cleaned_lines = []
+            for line in message.body.split("\n"):
+                # Use regex to remove leading spaces and '>' characters
+                cleaned_line = re.sub(r'^[ >]+', '', line)
+                cleaned_lines.append(cleaned_line)
+            message.body = "\n".join(cleaned_lines)
+            message.body = message.body.strip()
+
+        return thread_list
 
     def clean_subject(self, thread_list: List[EmailThread]):
         for thread in tqdm(thread_list):
@@ -206,6 +222,7 @@ class CleaningPipeline(BaseModel):
             multipart_messages = self.split_multipart_messages(
                 multipart_messages, message_split_regex
             )
+            multipart_messages = self.clean_bodies(multipart_messages)
             multipart_messages = self.extract_headers(multipart_messages)
             for i in multipart_messages:
 
@@ -236,6 +253,7 @@ class CleaningPipeline(BaseModel):
                 forwarded_messages = self.split_forwarded_messages(
                     forwarded_messages, forwarded_regex
                 )
+                forwarded_messages = self.clean_bodies(forwarded_messages)
                 forwarded_messages = self.extract_headers(forwarded_messages)
 
                 for j in forwarded_messages:
@@ -256,5 +274,6 @@ class CleaningPipeline(BaseModel):
                 for thread in threads
             ]
             cleaned_data = self.remove_noise(threads)
+            cleaned_data = self.clean_bodies(cleaned_data)
             for j in cleaned_data:
                 j.save(target_collection=i)
