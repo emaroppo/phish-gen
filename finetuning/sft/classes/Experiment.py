@@ -38,7 +38,8 @@ class Experiment(BaseModel):
         batch_size: int = 4,
         gradient_accumulation_steps: int = 4,
         learning_rate: float = 2e-4,
-        custom_tokens: List[str] = [
+        warmup_steps: int = 0,
+        custom_tokens: Union[List[str], Dict[str, List[str]]] = [
             "<URL>",
             "<ATTACHMENT>",
             "<PHONE>",
@@ -47,7 +48,6 @@ class Experiment(BaseModel):
             "<PER>",
             "<ORG>",
         ],
-        related_tokens_dict: Dict[str, List[str]] = None,
     ):
         dataset = FinetuningDataset.from_db(dataset_timestamp)
 
@@ -61,7 +61,8 @@ class Experiment(BaseModel):
             batch_size=batch_size,
             gradient_accumulation_steps=gradient_accumulation_steps,
             learning_rate=learning_rate,
-            custom_tokens=related_tokens_dict,
+            custom_tokens=custom_tokens,
+            warmup_steps=warmup_steps,
         )
 
         experiment = cls(

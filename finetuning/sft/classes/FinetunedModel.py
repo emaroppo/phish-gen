@@ -60,11 +60,11 @@ class FinetunedModel(BaseModel):
     rank: int
     quantization: str
     batch_size: int
-    warmup_steps: int = 0
     gradient_accumulation_steps: int
     learning_rate: float
+    warmup_steps: int = 0
     checkpoints: Optional[List[FinetunedCheckpoint]] = list()
-    custom_tokens: Optional[List[str]] = None
+    custom_tokens: Optional[Union[List[str], Dict[str, List[str]]]] = None
     related_tokens_dict: Optional[Dict[str, List[str]]] = None
     loss_history: Optional[List] = list()
 
@@ -75,17 +75,19 @@ class FinetunedModel(BaseModel):
             return BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.float16,
             )
         elif self.quantization == "8bit":
             return BitsAndBytesConfig(
                 load_in_8bit=True,
                 bnb_8bit_quant_type="nf8",
+                bnb_8bit_compute_dtype=torch.float16,
             )
         else:
             return None
 
     @classmethod
-    def deserialize(cls, data):
+    def deserialize(cls, data, include_messages=False):
         return cls(
             timestamp=data["timestamp"],
             dataset_timestamp=data["dataset_timestamp"],
@@ -96,18 +98,20 @@ class FinetunedModel(BaseModel):
             gradient_accumulation_steps=data["gradient_accumulation_steps"],
             learning_rate=data["learning_rate"],
             checkpoints=[
-                FinetunedCheckpoint.deserialize(data=checkpoint, include_messages=False)
+                FinetunedCheckpoint.deserialize(
+                    data=checkpoint, include_messages=include_messages
+                )
                 for checkpoint in data["checkpoints"]
             ],
         )
 
     @classmethod
-    def from_db(cls, base_model_id, timestamp):
+    def from_db(cls, base_model_id, timestamp, include_messages=False):
         # Load model from database
         finetuned_model = query_manager.connection["models"]["summary"].find_one(
             {"base_model_id": base_model_id, "timestamp": timestamp}
         )
-        return cls.deserialize(finetuned_model)
+        return cls.deserialize(finetuned_model, include_messages)
 
     @classmethod
     def get_sentence_embeddings(cls, model, tokenizer, sentence: str):
@@ -129,18 +133,22 @@ class FinetunedModel(BaseModel):
     ):
         # Get the embedding layer
         embedding_layer = model.get_input_embeddings()
+        embedding_dim = embedding_layer.embedding_dim
+        device = embedding_layer.weight.device  # Get the device of the embedding layer
+
+        new_tokens = []
+        new_embeddings = []
 
         # Initialize embeddings for custom tokens
         for token in custom_tokens:
             related_tokens = related_tokens_dict.get(token, [])
             if related_tokens:
                 related_token_ids = [
-                    tokenizer(rt, add_special_tokens=False) for rt in related_tokens
+                    tokenizer.convert_tokens_to_ids(tokenizer.tokenize(rt))
+                    for rt in related_tokens
                 ]
                 single_tokens = [
-                    related_token_id
-                    for related_token_id in related_token_ids
-                    if len(related_token_id) == 1
+                    token_id[0] for token_id in related_token_ids if len(token_id) == 1
                 ]
                 compound_tokens = [
                     related_tokens[i]
@@ -148,30 +156,42 @@ class FinetunedModel(BaseModel):
                     if len(related_token_ids[i]) > 1
                 ]
                 if single_tokens:
-                    single_tokens = embedding_layer.weight.data[single_tokens]
+                    single_token_embeddings = embedding_layer.weight.data[
+                        single_tokens
+                    ].to(device)
 
                 if compound_tokens:
-                    compound_tokens = [
-                        cls.get_sentence_embeddings(model, tokenizer, compound_token)
+                    compound_token_embeddings = [
+                        cls.get_sentence_embeddings(
+                            model, tokenizer, compound_token
+                        ).to(device)
                         for compound_token in compound_tokens
                     ]
                 if single_tokens and compound_tokens:
-                    related_embeddings = torch.cat([single_tokens, compound_tokens])
+                    related_embeddings = torch.cat(
+                        [single_token_embeddings] + compound_token_embeddings
+                    )
                 elif single_tokens:
-                    related_embeddings = single_tokens
+                    related_embeddings = single_token_embeddings
                 elif compound_tokens:
-                    related_embeddings = torch.stack(compound_tokens)
+                    related_embeddings = torch.stack(compound_token_embeddings)
                 average_embedding = related_embeddings.mean(dim=0)
             else:
                 # If no related tokens, initialize with random embeddings
-                average_embedding = torch.randn(embedding_layer.embedding_dim)
+                average_embedding = torch.randn(embedding_dim).to(device)
 
-            # Add the new token to the tokenizer and set its embedding
-            tokenizer.add_tokens([token])
+            new_tokens.append(token)
+            new_embeddings.append(average_embedding)
+
+        # Add all new tokens to the tokenizer
+        tokenizer.add_tokens(new_tokens)
+        model.resize_token_embeddings(len(tokenizer))
+        embedding_layer = model.get_input_embeddings()
+
+        # Set the embeddings for the new tokens
+        for token, embedding in zip(new_tokens, new_embeddings):
             token_id = tokenizer.convert_tokens_to_ids(token)
-            model.resize_token_embeddings(len(tokenizer))
-            embedding_layer = model.get_input_embeddings()
-            embedding_layer.weight.data[token_id] = average_embedding
+            embedding_layer.weight.data[token_id] = embedding.to(device)
 
     @classmethod
     def train_model(
@@ -188,10 +208,6 @@ class FinetunedModel(BaseModel):
         custom_tokens: Union[List[str], Dict[str, List[str]], None] = None,
         save_steps: int = 500,
     ):
-        custom_tokens_dict = None
-        if type(custom_tokens) == dict:
-            custom_tokens_dict = custom_tokens
-            custom_tokens = custom_tokens_dict.keys()
         # Create a new finetuned model entry in the database
         timestamp = int(datetime.now().timestamp())
         finetuned_model = FinetunedModel(
@@ -224,14 +240,17 @@ class FinetunedModel(BaseModel):
         tokenizer = AutoTokenizer.from_pretrained(base_model_id)
         tokenizer.pad_token = tokenizer.eos_token
 
-        if custom_tokens_dict:
+        if type(custom_tokens) == dict:
+            custom_tokens_dict = custom_tokens
+            custom_tokens = [token for token in custom_tokens_dict.keys()]
+
             FinetunedModel.initialize_new_embeddings(
                 model,
                 tokenizer,
                 custom_tokens=custom_tokens,
                 related_tokens_dict=custom_tokens_dict,
             )
-        elif custom_tokens:
+        elif type(custom_tokens) == list:
             tokenizer.add_tokens(custom_tokens)
             model.resize_token_embeddings(len(tokenizer))
 
@@ -265,6 +284,7 @@ class FinetunedModel(BaseModel):
             num_train_epochs=epochs,
             save_steps=save_steps,
             learning_rate=learning_rate,
+            max_grad_norm=1.0,
             fp16=True,
             logging_steps=1,
             output_dir=f"finetuning/sft/models/{base_model_id.split('/')[-1]}/{timestamp}",
@@ -367,6 +387,8 @@ class FinetunedModel(BaseModel):
             "gradient_accumulation_steps": self.gradient_accumulation_steps,
             "learning_rate": self.learning_rate,
             "checkpoints": [checkpoint.serialise() for checkpoint in self.checkpoints],
+            "custom_tokens": self.custom_tokens,
+            "loss_history": self.loss_history,
         }
 
     def add_checkpoint(self, timestamp, base_model_id, steps):
