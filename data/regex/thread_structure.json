@@ -1,1 +1,14 @@
-{"headers": {"outer": "From:\\s(?P<From>.*)\\n(?P<Headers>[\\s\\S]*?)\\nSubject:\\s(?P<Subject>.*)", "inner": "^([\\w\\-]*?):\\s*(.*)$"}, "reply_separator": ["(?:(?:-+)\\s*Original\\s*Message\\s*-+)"], "forwarded_separator": ["(?:-+)\\s+Forwarded\\s+by\\s+(?P<sender>.*)\\s+on\\s+(?P<datetime>(?:\\d){1,2}\\/(?:\\d){1,2}\\/(?:\\d){2,4}\\s+(?:\\d){1,2}:(?:\\d){2}\\s+(?:(?:AM)|(?:PM)))\\s+-+"]}
+{
+    "headers": {
+        "outer": "From:\\s(?P<From>.*)\\n(?P<Headers>[\\s\\S]*?)\\nSubject:\\s(?P<Subject>.*)",
+        "inner": "^([\\w\\-]*?):\\s*(.*)$"
+    },
+    "reply_separator": [
+        "(?:(?:-+)\\s*Original\\s*Message\\s*-+)"
+    ],
+    "forwarded_separator": [
+        "(?:-+)\\s+Forwarded\\s+by\\s+(?P<sender>.*)\\s+on\\s+(?P<datetime>(?:\\d){1,2}\\/(?:\\d){1,2}\\/(?:\\d){2,4}\\s+(?:\\d){1,2}:(?:\\d){2}\\s+(?:(?:AM)|(?:PM)))\\s+-+",
+        "-+\\s+Inline\\s+attachment\\s+follows\\s+-+",
+        "-+\\s+Forwarded\\s+Message(\\s+-+)?"
+    ]
+}
