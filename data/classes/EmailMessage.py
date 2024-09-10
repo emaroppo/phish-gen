@@ -13,7 +13,7 @@ class EmailMessageEntry(BaseModel):
     forwarded_by: Optional[ObjectId] = None
     entities: Optional[Dict[str, Dict[str, List]]] = None
     sentiment: Optional[List[Dict[str, Union[float, str]]]] = None
-    topic: Optional[List[List[Union[str, float]]]] = None
+    topic: Optional[List[str]] = None
     attachments_format: Optional[List[str]] = None
     disclaimer: Optional[str] = None
     is_html: Optional[bool] = False
@@ -32,7 +32,7 @@ class EmailMessage(BaseModel):
     forwarded_by: Optional[str] = None
     entities: Optional[Dict[str, Dict[str, List]]] = None
     sentiment: Optional[List[Dict[str, Union[float, str]]]] = None
-    topic: Optional[List[List[Union[str, float]]]] = None
+    topic: Optional[List[str]] = None
     attachments_format: Optional[List[str]] = None
     disclaimer: Optional[str] = None
     is_html: Optional[bool] = False
@@ -87,10 +87,10 @@ class EmailMessage(BaseModel):
 
         self.entities[detection_method][entity_type].append((entity_value, start, end))
 
-    def add_sentiment(self, sentiment: Dict[str, float])-> None:
+    def add_sentiment(self, sentiment: Dict[str, float]) -> None:
         self.sentiment = sentiment
 
-    def add_topic(self, topic: List[List[Union[str, float]]])-> None:
+    def add_topic(self, topic: List[str]) -> None:
         self.topic = topic
 
     def serialise(self) -> EmailMessageEntry:
@@ -100,21 +100,29 @@ class EmailMessage(BaseModel):
             "headers": self.headers,
             "body": self.body,
         }
-    
+
         optional_fields = {
             "entities": self.entities,
             "sentiment": self.sentiment,
             "disclaimer": self.disclaimer,
             "topic": self.topic,
-            "response": ObjectId(self.response) if self.response and self.response != "None" else None,
-            "forwarded_by": ObjectId(self.forwarded_by) if self.forwarded_by and self.forwarded_by != "None" else None,
+            "response": (
+                ObjectId(self.response)
+                if self.response and self.response != "None"
+                else None
+            ),
+            "forwarded_by": (
+                ObjectId(self.forwarded_by)
+                if self.forwarded_by and self.forwarded_by != "None"
+                else None
+            ),
             "is_html": self.is_html if self.is_html else None,
             "word_count": self.word_count,
             "attachments_format": self.attachments_format,
         }
-    
-        db_entry.update({k: v for k, v in optional_fields if v is not None})
-    
+
+        db_entry.update({k: v for k, v in optional_fields.items() if v is not None})
+
         return EmailMessageEntry(**db_entry).model_dump(by_alias=True)
 
     def save(self, db_name: str, target_collection: str):
