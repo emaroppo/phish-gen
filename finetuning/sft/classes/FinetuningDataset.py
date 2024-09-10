@@ -30,11 +30,16 @@ class FinetuningDataset(BaseModel):
         )
 
     @classmethod
-    def from_db(cls, timestamp: int):
+    def from_db(cls, timestamp: int, include_messages=True):
         data = query_manager.connection["datasets"]["summary"].find_one(
             {"timestamp": timestamp}
         )
-        messages = query_manager.connection["datasets"][f"samples_{timestamp}"].find()
+        if include_messages:
+            messages = query_manager.connection["datasets"][
+                f"samples_{timestamp}"
+            ].find()
+        else:
+            messages = []
         data["messages"] = messages
         return cls.deserialize(data)
 
