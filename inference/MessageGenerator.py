@@ -83,7 +83,7 @@ class MessageGenerator(BaseModel):
 
             model = PeftModel.from_pretrained(
                 model,
-                f"offline_finetuning/models/{self.finetuned_model.base_model_id.split('/')[-1]}/{self.finetuned_model.timestamp}/checkpoint-{self.checkpoint}",
+                f"finetuning/sft/models/{self.finetuned_model.base_model_id.split('/')[-1]}/{self.finetuned_model.timestamp}/checkpoint-{self.checkpoint}",
             )
 
         return model
