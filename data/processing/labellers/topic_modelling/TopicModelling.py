@@ -10,6 +10,7 @@ from functools import cached_property
 class TopicModelling(BaseModel):
     checkpoint_path: str = None
     dataset: List[str] = None
+    n_topics: int = 0
 
     @computed_field
     @cached_property
@@ -28,9 +29,15 @@ class TopicModelling(BaseModel):
                 embedding_model="all-MiniLM-L6-v2",
             )
             topic_model.fit_transform(self.dataset)
+            if self.n_topics > 0:
+                topic_model.reduce_topics(self.dataset, n_topics=self.n_topics)
             topic_model.save(
-                "offline_finetuning/auto_labelling/topic_modelling/models/topic_model",
+                "data/processing/labellers/topic_modelling/models/topic_model",
                 serialization="safetensors",
+            )
+            topic_model = BERTopic.load(
+                "data/processing/labellers/topic_modelling/models/topic_model",
+                embedding_model="all-MiniLM-L6-v2",
             )
         else:
             raise ValueError("No dataset or checkpoint path provided.")
@@ -38,4 +45,7 @@ class TopicModelling(BaseModel):
         return topic_model
 
     def predict_topic(self, text: str):
-        return self.topic_model.transform([text])
+        topic = self.topic_model.find_topics(text, top_n=1)[0]
+        topic = [self.topic_model.get_topic(i) for i in topic]
+        topic = [i[0] for i in topic[0]]
+        return topic

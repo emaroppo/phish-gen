@@ -12,6 +12,7 @@ from data.processing.labellers.SentimentMessageLabeller import (
 )
 from data.processing.labellers.TopicMessageLabeller import TopicMessageLabeller
 from data.QueryManager import query_manager
+import copy
 
 
 with open("data/regex/placeholders.json", "r") as f:
@@ -36,22 +37,23 @@ def get_sentiment(
 class ProcessingPipeline(BaseModel):
     db: str = "enron_datasource"
 
-    def check_html(self, thread_list: List[EmailThread]) -> List[EmailThread]:
+    @staticmethod
+    def check_html(thread_list: List[EmailThread]) -> List[EmailThread]:
         for thread in thread_list:
             for message in thread.messages:
                 if re.search(r"<html>", message.body):
                     message.is_html = True
         return thread_list
 
-    def get_word_count(self, thread_list: List[EmailThread]) -> List[EmailThread]:
+    @staticmethod
+    def get_word_count(thread_list: List[EmailThread]) -> List[EmailThread]:
         for thread in thread_list:
             for message in thread.messages:
                 message.word_count = len(message.body.split())
         return thread_list
 
-    def get_attachments_formats(
-        self, thread_list: List[EmailThread]
-    ) -> List[EmailThread]:
+    @staticmethod
+    def get_attachments_formats(thread_list: List[EmailThread]) -> List[EmailThread]:
         for thread in thread_list:
             for message in thread.messages:
                 if message.entities is not None and "manual" in message.entities:
@@ -75,9 +77,8 @@ class ProcessingPipeline(BaseModel):
                         ]
         return thread_list
 
-    def extract_entities(
-        self, thread_list: List[EmailThread], placeholder: str, regex: str
-    ):
+    @staticmethod
+    def extract_entities(thread_list: List[EmailThread], placeholder: str, regex: str):
         for thread in thread_list:
             for message in thread.messages:
                 matches = re.finditer(regex, message.body)
@@ -98,7 +99,8 @@ class ProcessingPipeline(BaseModel):
 
         return thread_list
 
-    def remove_overlapping_labels(self, thread_list: List[EmailThread]):
+    @staticmethod
+    def remove_overlapping_labels(thread_list: List[EmailThread]):
         for thread in thread_list:
             for message in thread.messages:
                 labels = list()
@@ -145,8 +147,8 @@ class ProcessingPipeline(BaseModel):
 
         return thread_list
 
+    @staticmethod
     def predict_sentiment(
-        self,
         message_list: List[EmailMessage],
         sentiment_predictor: SentimentMessageLabeller,
         batch_size: int = 128,
@@ -159,19 +161,22 @@ class ProcessingPipeline(BaseModel):
             message.add_sentiment(sentiment)
         return message_list
 
+    @staticmethod
     def predict_topic(
-        self,
         message_list: List[EmailMessage],
         topic_predictor: TopicMessageLabeller,
         save=True,
     ):
-        topic = topic_predictor.label_message(message_data(message_list))
-        for message, topic in zip(message_list, topic):
-            message.add_topic(topic)
-            message.save()
+        message_bodies = copy.deepcopy(message_list)
+        message_bodies = ProcessingPipeline.insert_entity_placeholders(message_bodies)
+        message_bodies = [message.body for message in message_bodies]
 
+        for message, message_body in tqdm(zip(message_list, message_bodies)):
+            message_label = topic_predictor.label_message(message_body)
+            message.add_topic(message_label)
+
+    @staticmethod
     def extract_named_entities(
-        self,
         message_list: List[EmailMessage],
         entity_predictor: NERMessageLabeller,
         batch_size: int = 128,
@@ -196,8 +201,8 @@ class ProcessingPipeline(BaseModel):
 
         return message_list
 
+    @staticmethod
     def insert_entity_placeholders(
-        self,
         message_list: List[EmailMessage],
         entity_types: List[str] = [
             "URL",
@@ -239,7 +244,8 @@ class ProcessingPipeline(BaseModel):
             message.body = body
         return message_list
 
-    def messages_to_datasamples(self, messages: List[EmailMessage]) -> List[DataSample]:
+    @staticmethod
+    def messages_to_datasamples(messages: List[EmailMessage]) -> List[DataSample]:
         datasamples = list()
         for message in messages:
             if message.is_html or message.word_count > 1000 or message.headers is None:
@@ -328,6 +334,13 @@ class ProcessingPipeline(BaseModel):
                 message_list=message_list, sentiment_predictor=sentiment_labeller
             )
 
+            message_list = self.predict_topic(
+                message_list=message_list,
+                topic_predictor=TopicMessageLabeller(
+                    checkpoint_path="data/processing/labellers/topic_modelling/models/topic_model"
+                ),
+            )
+
             # extract entities
             message_list = self.extract_named_entities(
                 message_list=message_list, entity_predictor=ner_labeller
@@ -387,14 +400,18 @@ class ProcessingPipeline(BaseModel):
         # self.run_features_pipeline(source_collections)
         for collection in source_collections:
 
-            #filter samples            
+            # filter samples
             match_dict = {
                 "messages.headers": {"$exists": True},
                 "messages.is_html": {"$ne": True},
                 "messages.word_count": {"$lte": 448},
             }
 
-            pipeline = [{"$project": {"messages": 1}}, {"$unwind": "$messages"}, {"$match": match_dict}]
+            pipeline = [
+                {"$project": {"messages": 1}},
+                {"$unwind": "$messages"},
+                {"$match": match_dict},
+            ]
             messages = query_manager.connection[self.db][collection].aggregate(pipeline)
             messages = [
                 EmailMessage.deserialize(message["messages"]) for message in messages
@@ -425,4 +442,35 @@ class ProcessingPipeline(BaseModel):
                 messages
             )
 
+        return True
+
+    def update_topics(self, collection: str):
+        # filter samples
+        match_dict = {
+            "messages.headers": {"$exists": True},
+            "messages.is_html": {"$ne": True},
+            "messages.word_count": {"$lte": 448},
+        }
+
+        pipeline = [
+            {"$project": {"messages": 1}},
+            {"$unwind": "$messages"},
+            {"$match": match_dict},
+        ]
+        messages = query_manager.connection[self.db][collection].aggregate(pipeline)
+        messages = [
+            EmailMessage.deserialize(message["messages"]) for message in messages
+        ]
+
+        message_bodies = self.insert_entity_placeholders(copy.deepcopy(messages))
+        message_bodies = [message.body for message in message_bodies]
+        topic_predictor = TopicMessageLabeller(
+            checkpoint_path="data/processing/labellers/topic_modelling/models/topic_model"
+        )
+
+        for message, message_body in tqdm(zip(messages, message_bodies)):
+
+            message_label = topic_predictor.label_message(message_body)
+            message.add_topic(message_label)
+            message.save(db_name=self.db, target_collection=collection)
         return True
