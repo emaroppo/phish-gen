@@ -94,6 +94,7 @@ class FinetunedModel(BaseModel):
             base_model_id=data["base_model_id"],
             rank=data["rank"],
             quantization=data["quantization"],
+            custom_tokens=data["custom_tokens"],
             batch_size=data["batch_size"],
             gradient_accumulation_steps=data["gradient_accumulation_steps"],
             learning_rate=data["learning_rate"],
@@ -313,37 +314,61 @@ class FinetunedModel(BaseModel):
         return finetuned_model
 
     def resume_training(self, epochs):
-        # load model from output_dir
+        # Load base model from Hugging Face Hub
+        print(type(self.custom_tokens))
+
+        base_model_id = "google/gemma-2b"
+        print(f"Loading base model from {base_model_id}")
+        model = AutoModelForCausalLM.from_pretrained(
+            base_model_id, quantization_config=self.bnb_config
+        )
+
+        # Load modified tokenizer from output directory
         output_dir = f"finetuning/sft/models/{self.base_model_id.split('/')[-1]}/{self.timestamp}"
-        model = AutoModelForCausalLM.from_pretrained(output_dir)
-        tokenizer = AutoTokenizer.from_pretrained(output_dir)
+        tokenizer = AutoTokenizer.from_pretrained(base_model_id)
+        if type(self.custom_tokens) == list:
+            tokenizer.add_tokens(self.custom_tokens)
+            model.resize_token_embeddings(len(tokenizer))
 
-        dataset = FinetuningDataset.load_from_timestamp(self.dataset_timestamp)
+        # TODO: implement for custom_tokens as dict
 
+        # Load dataset from database
+        print(f"Loading dataset with timestamp {self.dataset_timestamp}")
+        dataset = FinetuningDataset.from_db(self.dataset_timestamp)
         dataset = dataset.load_finetuning_dataset(tokenizer)
 
-        # freeze model weights
+        # Freeze model weights
+        print("Freezing model weights")
         for param in model.parameters():
             param.requires_grad = False
             if param.ndim == 1:
-                param.data.to(torch.float32)
+                param.data = param.data.to(torch.float32)
 
+        # Enable gradient checkpointing
+        print("Enabling gradient checkpointing")
         model.gradient_checkpointing_enable()
         model.enable_input_require_grads()
 
+        # Cast output to float
         class CastOutputToFloat(torch.nn.Sequential):
             def forward(self, x):
                 return super().forward(x).to(torch.float32)
 
         model.lm_head = CastOutputToFloat(model.lm_head)
 
+        # Apply LoRA configuration
+        print("Applying LoRA configuration")
         config = LoraConfig(task_type="CAUSAL_LM", r=self.rank)
         model = get_peft_model(model, config)
 
-        # model training
+        # Load adapters from output directory
+
+        # Set up data collator
         data_collator = DataCollatorForLanguageModeling(
             tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8
         )
+
+        # Set up training arguments
         args = TrainingArguments(
             per_device_train_batch_size=self.batch_size,
             gradient_accumulation_steps=self.gradient_accumulation_steps,
@@ -355,26 +380,31 @@ class FinetunedModel(BaseModel):
             output_dir=output_dir,
         )
 
+        # Initialize Trainer with callbacks
+        print("Initializing Trainer")
         trainer = Trainer(
             model=model,
             train_dataset=dataset,
             args=args,
             data_collator=data_collator,
             callbacks=[
-                LossLoggerCallback(
-                    f"finetuning/sft/models/{self.base_model_id.split('/')[-1]}/{self.timestamp}/losses.json"
-                ),
+                LossLoggerCallback(self, f"{output_dir}/losses.json"),
                 CheckpointCallback(self),
             ],
         )
 
-        trainer.train(
-            resume_from_checkpoint=True,
-        )
+        # Start training
+        print("Starting training")
+        trainer.train(resume_from_checkpoint=True)
+
+        # Save model and tokenizer
+        print(f"Saving model and tokenizer to {output_dir}")
         model.save_pretrained(output_dir)
         tokenizer.save_pretrained(output_dir)
 
+        # Save the finetuned model state
         self.save()
+        print("Training resumed and model saved successfully")
 
     def serialise(self):
         return {

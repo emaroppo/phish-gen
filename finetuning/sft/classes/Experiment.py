@@ -107,7 +107,7 @@ class Experiment(BaseModel):
         return sample_args
 
     def continue_experiment(self, epochs):
-        self.finetuned_model.continue_training(epochs=epochs)
+        self.finetuned_model.resume_training(epochs=epochs)
         self.evaluate_model_outputs()
 
     def generate_evaluation_messages(self, checkpoint):
