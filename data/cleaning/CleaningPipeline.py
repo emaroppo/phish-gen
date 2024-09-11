@@ -1,11 +1,10 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import List
 from data.QueryManager import query_manager
 from data.classes.EmailMessage import EmailMessage
 from data.classes.EmailThread import EmailThread
 from bson import ObjectId
 from tqdm import tqdm
-import os
 import json
 import email
 import re
@@ -18,23 +17,31 @@ with open("data/regex/noise.json", "r") as f:
 
 
 class CleaningPipeline(BaseModel):
-    database_name: str = "enron_datasource"
+    database_name: str = "enron_datasource1"
 
     def load_raw_data(
         self,
-        data_dir: str = "data/datasets_raw/enron",
+        path_list: List[str],
         out_collection: str = "raw_data",
     ):
-        for i in tqdm(os.listdir(data_dir), desc="Loading raw inboxes"):
-            if "inbox" in os.listdir(data_dir + "/" + i):
-                for j in os.walk(data_dir + "/" + i + "/inbox"):
-                    for k in j[2]:
-                        with open(j[0] + "/" + k, "r", errors="ignore") as f:
-                            text = f.read()
-                            thread = EmailThread.from_text(
-                                text, j[0] + "/" + k, self.database_name, out_collection
-                            )
-                            thread.save()
+        failed_files_count = 0
+        not_found_files = 0
+        for path in path_list:
+            try:
+                with open(path, "r") as f:
+                    text = f.read()
+                    thread = EmailThread.from_text(
+                        text, path, self.database_name, out_collection
+                    )
+                    thread.save()
+            except UnicodeDecodeError:
+                failed_files_count += 1
+            except FileNotFoundError:
+                not_found_files += 1
+
+        print(f"Failed to load {failed_files_count} files")
+        print(f"Files not found: {not_found_files}")
+
         return True
 
     def extract_headers(self, thread_list: List[EmailThread]) -> List[EmailThread]:
@@ -145,20 +152,18 @@ class CleaningPipeline(BaseModel):
                         message.body = re.sub(footer_pattern, "", message.body)
 
         return thread_list
-    
-    import re
 
     def clean_bodies(self, thread_list: List[EmailThread]):
-        # Replace [IMAGE] with ''
-        for message in thread_list:
-            message.body = message.body.replace("[IMAGE]", "")
-            cleaned_lines = []
-            for line in message.body.split("\n"):
-                # Use regex to remove leading spaces and '>' characters
-                cleaned_line = re.sub(r'^[ >]+', '', line)
-                cleaned_lines.append(cleaned_line)
-            message.body = "\n".join(cleaned_lines)
-            message.body = message.body.strip()
+        for thread in thread_list:
+            for message in thread.messages:
+                message.body = message.body.replace("[IMAGE]", "")
+                cleaned_lines = []
+                for line in message.body.split("\n"):
+                    # Use regex to remove leading spaces and '>' characters
+                    cleaned_line = re.sub(r"^[ >]+", "", line)
+                    cleaned_lines.append(cleaned_line)
+                message.body = "\n".join(cleaned_lines)
+                message.body = message.body.strip()
 
         return thread_list
 
@@ -185,8 +190,9 @@ class CleaningPipeline(BaseModel):
 
         return thread_list
 
-    def run_pipeline(self):
-        self.load_raw_data()
+    def run_pipeline(self, path_list: List[str] = None):
+        if path_list is not None:
+            self.load_raw_data(path_list)
         # retrieve raw data
         # extract headers
         # save to a new collection (clean_data)
