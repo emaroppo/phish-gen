@@ -4,6 +4,9 @@ from typing import Optional, List
 from data.classes.DataSample import DataSample
 from data.QueryManager import query_manager
 from datasets import load_from_disk
+from data.cleaning.CleaningPipeline import CleaningPipeline
+from data.processing.ProcessingPipeline import ProcessingPipeline
+import time
 
 
 class FinetuningDataset(BaseModel):
@@ -14,7 +17,15 @@ class FinetuningDataset(BaseModel):
     sentiments: Optional[Dict[str, int]] = dict()
     entities: Optional[Dict[str, List[str]]] = dict()
     entity_counts: Optional[Dict[str, int]] = dict()
-    custom_tokens: List[str] = list()
+    custom_tokens: List[str] = [
+        "<URL>",
+        "<ATTACHMENT>",
+        "<PHONE>",
+        "<DATE>",
+        "<EMAIL>",
+        "<PER>",
+        "<ORG>",
+    ]
 
     @classmethod
     def deserialize(cls, data):
@@ -43,27 +54,38 @@ class FinetuningDataset(BaseModel):
         data["messages"] = messages
         return cls.deserialize(data)
 
-    def add_message(
-        self, urls, attachments, body, subject, sentiment, attachments_formats
-    ):
-        if type(attachments_formats) == list:
-            message = DataSample(
-                urls=urls,
-                attachments=attachments,
-                attachment_formats=attachments_formats,
-                sentiment=sentiment,
-                subject=subject,
-                body=body,
-            )
+    @classmethod
+    def from_file_list(cls, file_list):
+        dataset_timestamp = int(time.time())
+        dataset = cls(timestamp=dataset_timestamp)
 
-        else:
-            message = DataSample(
-                urls=urls,
-                attachments=attachments,
-                sentiment=sentiment,
-                subject=subject,
-                body=body,
-            )
+        cleaning_pipeline = CleaningPipeline()
+        processing_pipeline = ProcessingPipeline()
+
+        cleaning_pipeline.run_pipeline(path_list=file_list)
+
+        processing_pipeline.run_features_pipeline(collections=["single_messages"])
+        processing_pipeline.run_pipeline(
+            source_collections=["single_messages"],
+            target_collection=f"samples_{dataset_timestamp}",
+        )
+
+        # retrieve messages from the database
+        messages = query_manager.connection["datasets"][
+            f"samples_{dataset_timestamp}"
+        ].find()
+
+        messages = [DataSample.deserialize(message) for message in messages]
+
+        dataset = cls(timestamp=dataset_timestamp)
+        for message in messages:
+            dataset.add_message(message)
+
+        query_manager.connection["datasets"]["summary"].insert_one(dataset.serialise())
+
+        return dataset
+
+    def add_message(self, message: DataSample):
 
         message.entity_counts = self.custom_tokens
 
