@@ -175,6 +175,8 @@ class ProcessingPipeline(BaseModel):
             message_label = topic_predictor.label_message(message_body)
             message.add_topic(message_label)
 
+        return message_list
+
     @staticmethod
     def extract_named_entities(
         message_list: List[EmailMessage],
@@ -219,6 +221,8 @@ class ProcessingPipeline(BaseModel):
 
         for message in message_list:
             entity_labels = list()
+            if message.entities is None:
+                continue
             for entity_type in entity_types:
                 if manual and "manual" in message.entities:
                     if entity_type in message.entities["manual"]:
@@ -248,8 +252,6 @@ class ProcessingPipeline(BaseModel):
     def messages_to_datasamples(messages: List[EmailMessage]) -> List[DataSample]:
         datasamples = list()
         for message in messages:
-            if message.is_html or message.word_count > 1000 or message.headers is None:
-                continue
             urls = False
             attachments = False
             sentiment = get_sentiment(message.sentiment)
@@ -261,22 +263,7 @@ class ProcessingPipeline(BaseModel):
                         urls = True
                     if "ATTACHMENT" in message.entities["manual"]:
                         attachments = True
-                        if message.attachments_format and not all(
-                            [
-                                attachment
-                                in [
-                                    "pdf",
-                                    "doc",
-                                    "docx",
-                                    "xls",
-                                    "xlsx",
-                                    "ppt",
-                                    "pptx",
-                                ]
-                                for attachment in message.attachments_format
-                            ]
-                        ):
-                            continue
+                        attachment_formats = message.attachments_format
 
             datasample = DataSample(
                 body=message.body,
@@ -329,11 +316,13 @@ class ProcessingPipeline(BaseModel):
                 task="ner",
             )
 
+            print("Labelling message sentiment")
             # sentiment analysis
             message_list = self.predict_sentiment(
                 message_list=message_list, sentiment_predictor=sentiment_labeller
             )
 
+            print("Labelling message topics")
             message_list = self.predict_topic(
                 message_list=message_list,
                 topic_predictor=TopicMessageLabeller(
@@ -341,6 +330,7 @@ class ProcessingPipeline(BaseModel):
                 ),
             )
 
+            print("Extracting named entities")
             # extract entities
             message_list = self.extract_named_entities(
                 message_list=message_list, entity_predictor=ner_labeller
@@ -401,8 +391,10 @@ class ProcessingPipeline(BaseModel):
         for collection in source_collections:
 
             # filter samples
+            # check headers exists and is not none
+
             match_dict = {
-                "messages.headers": {"$exists": True},
+                "messages.headers": {"$exists": True, "$ne": None},
                 "messages.is_html": {"$ne": True},
                 "messages.word_count": {"$lte": 448},
             }

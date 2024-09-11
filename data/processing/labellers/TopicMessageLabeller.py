@@ -30,7 +30,9 @@ class TopicMessageLabeller(MessageLabeller):
         if type(message_body) == str:
             label = self.topic_model.predict_topic(message_body)
             return label
-        if type(messsage_body) == list:
+
+        # logic for batch processing, not tested
+        if type(message_body) == list:
             labels = [
                 self.topic_model.predict_topic(message) for message in message_body
             ]
