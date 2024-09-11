@@ -276,6 +276,20 @@ class ProcessingPipeline(BaseModel):
             datasamples.append(datasample)
         return datasamples
 
+    def entity_validation(
+        classifier_id: str = "dslim/bert-base-NER",
+        collections: list = [
+            "single_messages",
+        ],
+        file_path: str = "data/processing/labellers/ner/validation/",
+    ):
+        ner_message_labeller = NERMessageLabeller(
+            classifier_id=classifier_id, task="ner"
+        )
+        ner_message_labeller.generate_validation_excel(
+            collections=collections, file_path=file_path
+        )
+
     def run_features_pipeline(self, collections: List[str]):
 
         for collection in collections:
