@@ -116,9 +116,16 @@ class FinetuningDataset(BaseModel):
 
         dataset = dataset.map(
             lambda samples: tokenizer(
-                samples["text"], padding="max_length", truncation=True, max_length=512
+                samples["text"],
+                padding="max_length",
+                truncation=True,
+                max_length=512,
+                add_special_tokens=True,
             ),
         ).shuffle()
+
+        # print first sample tokenized
+        print(dataset[0])
 
         return dataset
 

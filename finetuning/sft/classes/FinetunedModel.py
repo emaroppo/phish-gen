@@ -239,7 +239,7 @@ class FinetunedModel(BaseModel):
 
         # Load the tokenizer
         tokenizer = AutoTokenizer.from_pretrained(base_model_id)
-        tokenizer.pad_token = tokenizer.eos_token
+        tokenizer.add_eos_token = True
 
         if type(custom_tokens) == dict:
             custom_tokens_dict = custom_tokens
