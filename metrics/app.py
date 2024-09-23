@@ -5,11 +5,11 @@ import plotly.express as px
 import pandas as pd
 
 # options: dataset, model
-with open("streamlit_app/summary.json") as f:
+with open("metrics/summary.json") as f:
     dataset_data = json.load(f)
     timestamps = [dataset["timestamp"] for dataset in dataset_data]
 
-with open("streamlit_app/model_summary.json") as f:
+with open("metrics/model_summary.json") as f:
     model_data = json.load(f)
     model_timestamps = [model["timestamp"] for model in model_data]
 
@@ -93,6 +93,12 @@ elif option == "Model":
     if model_checkpoint == "Overview":
         # plot model overview
         st.write(f"Model {model_timestamp} - Overview")
+        losses = model_data["loss_history"]
+        # create dataframe from losses, plot as line graph
+        losses_df = pd.DataFrame(losses, columns=["Loss"])
+        fig = px.line(losses_df)
+        st.plotly_chart(fig)
+
         tasks_accuracy = dict()
         tasks_accuracy["urls"] = list()
         tasks_accuracy["attachments"] = list()
