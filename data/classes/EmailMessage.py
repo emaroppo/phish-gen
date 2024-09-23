@@ -7,6 +7,7 @@ from data.QueryManager import query_manager
 class EmailMessageEntry(BaseModel):
     id: ObjectId = Field(alias="_id")
     is_main: bool
+    entity_validation_status: Optional[bool] = False
     headers: Optional[Dict[str, str]] = None
     body: str
     response: Optional[ObjectId] = None
@@ -28,6 +29,7 @@ class EmailMessage(BaseModel):
     is_main: bool
     headers: Optional[Dict[str, str]] = None
     body: str
+    entity_validation_status: Optional[bool] = False
     response: Optional[str] = None
     forwarded_by: Optional[str] = None
     entities: Optional[Dict[str, Dict[str, List]]] = None
@@ -70,6 +72,22 @@ class EmailMessage(BaseModel):
 
         return cls(**message_doc)
 
+    @classmethod
+    def from_message_id(
+        cls, message_id: str, collection: str, db: str = "enron_datasource1"
+    ) -> "EmailMessage":
+
+        print("message_id", message_id)
+        pipeline = [
+            {"$unwind": "$messages"},
+            {"$match": {"messages._id": ObjectId(message_id)}},
+            {"$project": {"messages": 1}},
+        ]
+        message = query_manager.connection[db][collection].aggregate(pipeline)
+        message = list(message)[0]["messages"]
+
+        return cls.deserialize(message)
+
     def add_entity(
         self,
         entity_type: str,
@@ -99,6 +117,7 @@ class EmailMessage(BaseModel):
             "is_main": self.is_main,
             "headers": self.headers,
             "body": self.body,
+            "entity_validation_status": self.entity_validation_status,
         }
 
         optional_fields = {
