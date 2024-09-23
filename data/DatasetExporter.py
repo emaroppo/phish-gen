@@ -7,6 +7,7 @@ from inference.prompt_generation.generate_prompt import generate_prompt_output_p
 from datasets import Dataset
 import os
 import json
+from tqdm import tqdm
 
 
 class DatasetExporter(BaseModel):
@@ -40,8 +41,7 @@ class DatasetExporter(BaseModel):
         dataset = []
         filters_dicts = []
         project_dict = {
-            "_id": 0,
-            "message_id": "$messages.message_id",
+            "message_id": "$messages._id",
             "body": "$messages.body",
         }
         if headers:
@@ -66,12 +66,16 @@ class DatasetExporter(BaseModel):
             {"$project": project_dict},
         ]
 
-        data_samples = query_manager.connection["enron_datasource"][
+        # update logic to iterate over all databases once the data is available
+        data_samples = query_manager.connection[self.databases[0]][
             "single_messages"
         ].aggregate(pipeline)
 
-        for message in data_samples:
-            sample = {"text": message["body"], "labels": []}
+        for message in tqdm(data_samples):
+            sample = {
+                "text": f"{message['body']}\nMessage id: {message['message_id']}",
+                "labels": [],
+            }
 
             if headers:
                 pass

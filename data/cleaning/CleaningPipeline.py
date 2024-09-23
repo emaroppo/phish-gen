@@ -17,7 +17,7 @@ with open("data/regex/noise.json", "r") as f:
 
 
 class CleaningPipeline(BaseModel):
-    database_name: str = "enron_datasource1"
+    database_name: str = "enron_datasource"
 
     def load_raw_data(
         self,
@@ -154,8 +154,13 @@ class CleaningPipeline(BaseModel):
         return thread_list
 
     def clean_bodies(self, thread_list: List[EmailThread]):
+        sequences = ["=20", "=09", "=\n", "=3D"]
+
         for thread in thread_list:
             for message in thread.messages:
+                for sequence in sequences:
+                    message.body = message.body.replace(sequence, "")
+
                 message.body = message.body.replace("[IMAGE]", "")
                 cleaned_lines = []
                 for line in message.body.split("\n"):
@@ -163,6 +168,7 @@ class CleaningPipeline(BaseModel):
                     cleaned_line = re.sub(r"^[ >]+", "", line)
                     cleaned_lines.append(cleaned_line)
                 message.body = "\n".join(cleaned_lines)
+
                 message.body = message.body.strip()
 
         return thread_list

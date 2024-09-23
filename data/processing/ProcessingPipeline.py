@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Literal, Tuple
 from data.classes.EmailThread import EmailThread
 from data.classes.DataSample import DataSample
 from data.classes.EmailMessage import EmailMessage
@@ -17,6 +17,10 @@ import copy
 
 with open("data/regex/placeholders.json", "r") as f:
     placeholders = json.load(f)
+
+
+with open("data/regex/entities_regex.json", "r") as f:
+    named_entities = json.load(f)
 
 
 def message_data(messages: List[EmailMessage]):
@@ -79,7 +83,7 @@ class ProcessingPipeline(BaseModel):
 
     @staticmethod
     def extract_entities(thread_list: List[EmailThread], placeholder: str, regex: str):
-        for thread in thread_list:
+        for thread in tqdm(thread_list, desc=f"Extracting {placeholder}"):
             for message in thread.messages:
                 matches = re.finditer(regex, message.body)
                 extracted_entities = list()
@@ -100,50 +104,90 @@ class ProcessingPipeline(BaseModel):
         return thread_list
 
     @staticmethod
-    def remove_overlapping_labels(thread_list: List[EmailThread]):
+    def retrieve_all_entities(message: EmailMessage) -> EmailMessage:
+        labels = list()
+
+        if message.entities is not None:
+            for detection_method in message.entities:
+                if message.entities[detection_method] is not None:
+                    for entity_type in message.entities[detection_method]:
+                        labels.extend(
+                            [
+                                (detection_method, entity_type, label)
+                                for label in message.entities[detection_method][
+                                    entity_type
+                                ]
+                            ]
+                        )
+
+        labels.sort(key=lambda x: (x[2][1], -len(x[2][0])))
+        return message
+
+    @staticmethod
+    def remove_overlaps(
+        labels: List[Tuple[str, str, Tuple[str, int, int]]]
+    ) -> List[Tuple[str, str, Tuple[str, int, int]]]:
+
+        # Initialize a list to hold non-overlapping labels
+        non_overlapping_labels = []
+
+        # Initialize the end index of the last added label to -1
+        last_end_idx = -1
+
+        for label in labels:
+            _, start_idx, end_idx = label[2]
+
+            # If the current label does not overlap with the last added label, add it to the list
+            if start_idx > last_end_idx:
+                non_overlapping_labels.append(label)
+                last_end_idx = end_idx
+
+        # reconstruct the entities dictionary
+        new_entities = dict()
+        for label in non_overlapping_labels:
+
+            detection_method, entity_type, entity = label
+            if detection_method not in new_entities:
+                new_entities[detection_method] = dict()
+            if entity_type not in new_entities[detection_method]:
+                new_entities[detection_method][entity_type] = list()
+
+            new_entities[detection_method][entity_type].append(entity)
+
+        return new_entities
+
+    @classmethod
+    def remove_overlapping_labels(
+        cls,
+        thread_list: List[EmailThread],
+        detection_method: Union[
+            List[Literal["manual", "auto"]], Literal["all_entities"]
+        ] = "all_entities",
+    ) -> List[EmailThread]:
+
         for thread in thread_list:
             for message in thread.messages:
-                labels = list()
+                if detection_method == "all_entities":
+                    labels = cls.retrieve_all_entities(message)
+                    new_entities = cls.remove_overlaps(labels)
 
-                if message.entities is not None:
-                    for detection_method in message.entities:
-                        if message.entities[detection_method] is not None:
-                            for entity_type in message.entities[detection_method]:
+                elif type(detection_method) == list:
+                    for method in detection_method:
+                        labels = list()
+
+                        if method in message.entities:
+                            for entity_type in message.entities[method]:
                                 labels.extend(
                                     [
-                                        (detection_method, entity_type, label)
-                                        for label in message.entities[detection_method][
+                                        (method, entity_type, label)
+                                        for label in message.entities[method][
                                             entity_type
                                         ]
                                     ]
                                 )
-
-                labels.sort(key=lambda x: (x[2][1], -len(x[2][0])))
-
-                # Initialize a list to hold non-overlapping labels
-                non_overlapping_labels = []
-
-                # Initialize the end index of the last added label to -1
-                last_end_idx = -1
-
-                for label in labels:
-                    _, start_idx, end_idx = label[2]
-
-                    # If the current label does not overlap with the last added label, add it to the list
-                    if start_idx > last_end_idx:
-                        non_overlapping_labels.append(label)
-                        last_end_idx = end_idx
-                # reconstruct the entities dictionary
-                message.entities = dict()
-                for label in non_overlapping_labels:
-
-                    detection_method, entity_type, entity = label
-                    if detection_method not in message.entities:
-                        message.entities[detection_method] = dict()
-                    if entity_type not in message.entities[detection_method]:
-                        message.entities[detection_method][entity_type] = list()
-
-                    message.entities[detection_method][entity_type].append(entity)
+                    labels.sort(key=lambda x: (x[2][1], -len(x[2][0])))
+                    new_entities = cls.remove_overlaps(labels)
+                    message.entities.update(new_entities)
 
         return thread_list
 
@@ -161,14 +205,15 @@ class ProcessingPipeline(BaseModel):
             message.add_sentiment(sentiment)
         return message_list
 
-    @staticmethod
+    @classmethod
     def predict_topic(
+        cls,
         message_list: List[EmailMessage],
         topic_predictor: TopicMessageLabeller,
         save=True,
     ):
         message_bodies = copy.deepcopy(message_list)
-        message_bodies = ProcessingPipeline.insert_entity_placeholders(message_bodies)
+        message_bodies = cls.insert_entity_placeholders(message_bodies)
         message_bodies = [message.body for message in message_bodies]
 
         for message, message_body in tqdm(zip(message_list, message_bodies)):
@@ -305,6 +350,54 @@ class ProcessingPipeline(BaseModel):
             for thread in thread_list:
                 thread.save()
 
+        for k, v in tqdm(
+            placeholders.items(), desc="Extracting URL, ATTACHMENT, PHONE, DATE, EMAIL"
+        ):
+            for regex in v["regex"]:
+                thread_list = query_manager.connection[self.db][collection].find(
+                    {"messages.body": {"$regex": regex}}
+                )
+
+                thread_list = [
+                    EmailThread.deserialize(
+                        thread, db_name=self.db, collection=collection
+                    )
+                    for thread in thread_list
+                ]
+
+                thread_list = self.extract_entities(
+                    thread_list,
+                    v["placeholder"],
+                    regex,
+                )
+
+                for thread in thread_list:
+                    thread.save()
+
+        for k, v in tqdm(
+            named_entities.items(), desc="Extracting known named entities"
+        ):
+            for regex in v:
+                thread_list = query_manager.connection[self.db][collection].find(
+                    {"messages.body": {"$regex": regex}}
+                )
+
+                thread_list = [
+                    EmailThread.deserialize(
+                        thread, db_name=self.db, collection=collection
+                    )
+                    for thread in thread_list
+                ]
+
+                thread_list = self.extract_entities(
+                    thread_list,
+                    k,
+                    regex,
+                )
+
+                for thread in thread_list:
+                    thread.save()
+
             # retrieve all message bodies and ids
             pipeline = [
                 {"$project": {"messages": 1}},
@@ -353,28 +446,6 @@ class ProcessingPipeline(BaseModel):
             for message in tqdm(message_list):
                 message.save(db_name=self.db, target_collection=collection)
 
-            for k, v in tqdm(placeholders.items()):
-                for regex in v["regex"]:
-                    thread_list = query_manager.connection[self.db][collection].find(
-                        {"messages.body": {"$regex": regex}}
-                    )
-
-                    thread_list = [
-                        EmailThread.deserialize(
-                            thread, db_name=self.db, collection=collection
-                        )
-                        for thread in thread_list
-                    ]
-
-                    thread_list = self.extract_entities(
-                        thread_list,
-                        v["placeholder"],
-                        regex,
-                    )
-
-                    for thread in thread_list:
-                        thread.save()
-
             # retrieve messages with attachments
             thread_list = query_manager.connection[self.db][collection].find(
                 {"messages.entities.manual.ATTACHMENT": {"$exists": True}}
@@ -394,7 +465,9 @@ class ProcessingPipeline(BaseModel):
                 EmailThread.deserialize(thread, db_name=self.db, collection=collection)
                 for thread in data
             ]
-            thread_list = self.remove_overlapping_labels(thread_list)
+            thread_list = self.remove_overlapping_labels(
+                thread_list, detection_method=["manual"]
+            )
             for thread in tqdm(thread_list):
                 thread.save()
 
@@ -410,7 +483,7 @@ class ProcessingPipeline(BaseModel):
             match_dict = {
                 "messages.headers": {"$exists": True, "$ne": None},
                 "messages.is_html": {"$ne": True},
-                "messages.word_count": {"$lte": 448},
+                "messages.word_count": {"$lte": 448, "$gte": 16},
             }
 
             pipeline = [
