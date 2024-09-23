@@ -404,72 +404,69 @@ class ProcessingPipeline(BaseModel):
                 {"$unwind": "$messages"},
             ]
 
-            message_list = query_manager.connection[self.db][collection].aggregate(
-                pipeline
-            )
-            message_list = [
-                EmailMessage.deserialize(message["messages"])
-                for message in message_list
-            ]
+        message_list = query_manager.connection[self.db][collection].aggregate(pipeline)
+        message_list = [
+            EmailMessage.deserialize(message["messages"]) for message in message_list
+        ]
 
-            sentiment_labeller = SentimentMessageLabeller(
-                classifier_id="michellejieli/emotion_text_classifier",
-                task="sentiment-analysis",
-                no_top_k=True,
-            )
+        sentiment_labeller = SentimentMessageLabeller(
+            classifier_id="michellejieli/emotion_text_classifier",
+            task="sentiment-analysis",
+            no_top_k=True,
+        )
 
-            ner_labeller = NERMessageLabeller(
-                classifier_id="dslim/bert-large-NER",
-                task="ner",
-            )
+        ner_labeller = NERMessageLabeller(
+            classifier_id="dslim/bert-large-NER",
+            task="ner",
+        )
 
-            print("Labelling message sentiment")
-            # sentiment analysis
-            message_list = self.predict_sentiment(
-                message_list=message_list, sentiment_predictor=sentiment_labeller
-            )
+        print("Labelling message sentiment")
+        # sentiment analysis
+        message_list = self.predict_sentiment(
+            message_list=message_list, sentiment_predictor=sentiment_labeller
+        )
 
-            print("Labelling message topics")
-            message_list = self.predict_topic(
-                message_list=message_list,
-                topic_predictor=TopicMessageLabeller(
-                    checkpoint_path="data/processing/labellers/topic_modelling/models/topic_model"
-                ),
-            )
+        print("Labelling message topics")
+        message_list = self.predict_topic(
+            message_list=message_list,
+            topic_predictor=TopicMessageLabeller(
+                checkpoint_path="data/processing/labellers/topic_modelling/models/topic_model"
+            ),
+        )
 
-            print("Extracting named entities")
-            # extract entities
-            message_list = self.extract_named_entities(
-                message_list=message_list, entity_predictor=ner_labeller
-            )
+        print("Extracting named entities")
+        # extract entities
+        message_list = self.extract_named_entities(
+            message_list=message_list, entity_predictor=ner_labeller
+        )
 
-            for message in tqdm(message_list):
-                message.save(db_name=self.db, target_collection=collection)
+        for message in tqdm(message_list):
+            message.save(db_name=self.db, target_collection=collection)
 
-            # retrieve messages with attachments
-            thread_list = query_manager.connection[self.db][collection].find(
-                {"messages.entities.manual.ATTACHMENT": {"$exists": True}}
-            )
-            thread_list = [
-                EmailThread.deserialize(thread, db_name=self.db, collection=collection)
-                for thread in thread_list
-            ]
-            thread_list = self.get_attachments_formats(thread_list)
-            for thread in thread_list:
-                thread.save()
+        # retrieve messages with attachments
+        thread_list = query_manager.connection[self.db][collection].find(
+            {"messages.entities.manual.ATTACHMENT": {"$exists": True}}
+        )
+        thread_list = [
+            EmailThread.deserialize(thread, db_name=self.db, collection=collection)
+            for thread in thread_list
+        ]
+        thread_list = self.get_attachments_formats(thread_list)
+        for thread in thread_list:
+            thread.save()
 
-            # remove overlapping labels
-            # retrieve all threads
-            data = query_manager.connection[self.db][collection].find()
-            thread_list = [
-                EmailThread.deserialize(thread, db_name=self.db, collection=collection)
-                for thread in data
-            ]
-            thread_list = self.remove_overlapping_labels(
-                thread_list, detection_method=["manual"]
-            )
-            for thread in tqdm(thread_list):
-                thread.save()
+        # remove overlapping labels
+        # retrieve all threads
+        data = query_manager.connection[self.db][collection].find()
+        thread_list = [
+            EmailThread.deserialize(thread, db_name=self.db, collection=collection)
+            for thread in data
+        ]
+        thread_list = self.remove_overlapping_labels(
+            thread_list, detection_method=["manual"]
+        )
+        for thread in tqdm(thread_list):
+            thread.save()
 
         return True
 
