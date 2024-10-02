@@ -167,27 +167,28 @@ class ProcessingPipeline(BaseModel):
 
         for thread in thread_list:
             for message in thread.messages:
-                if detection_method == "all_entities":
-                    labels = cls.retrieve_all_entities(message)
-                    new_entities = cls.remove_overlaps(labels)
+                if message.entities is not None:
+                    if detection_method == "all_entities":
+                        labels = cls.retrieve_all_entities(message)
+                        new_entities = cls.remove_overlaps(labels)
 
-                elif type(detection_method) == list:
-                    for method in detection_method:
-                        labels = list()
+                    elif type(detection_method) == list:
+                        for method in detection_method:
+                            labels = list()
 
-                        if method in message.entities:
-                            for entity_type in message.entities[method]:
-                                labels.extend(
-                                    [
-                                        (method, entity_type, label)
-                                        for label in message.entities[method][
-                                            entity_type
+                            if method in message.entities:
+                                for entity_type in message.entities[method]:
+                                    labels.extend(
+                                        [
+                                            (method, entity_type, label)
+                                            for label in message.entities[method][
+                                                entity_type
+                                            ]
                                         ]
-                                    ]
-                                )
-                    labels.sort(key=lambda x: (x[2][1], -len(x[2][0])))
-                    new_entities = cls.remove_overlaps(labels)
-                    message.entities.update(new_entities)
+                                    )
+                        labels.sort(key=lambda x: (x[2][1], -len(x[2][0])))
+                        new_entities = cls.remove_overlaps(labels)
+                        message.entities.update(new_entities)
 
         return thread_list
 
@@ -426,7 +427,7 @@ class ProcessingPipeline(BaseModel):
             message_list=message_list, sentiment_predictor=sentiment_labeller
         )
 
-        print("Labelling message topics")
+        """print("Labelling message topics")
         message_list = self.predict_topic(
             message_list=message_list,
             topic_predictor=TopicMessageLabeller(
@@ -439,7 +440,7 @@ class ProcessingPipeline(BaseModel):
         message_list = self.extract_named_entities(
             message_list=message_list, entity_predictor=ner_labeller
         )
-
+"""
         for message in tqdm(message_list):
             message.save(db_name=self.db, target_collection=collection)
 
