@@ -26,7 +26,7 @@ class CleaningPipeline(BaseModel):
     ):
         failed_files_count = 0
         not_found_files = 0
-        for path in path_list:
+        for path in tqdm(path_list, desc="Loading files"):
             try:
                 with open(path, "r") as f:
                     text = f.read()
@@ -46,7 +46,7 @@ class CleaningPipeline(BaseModel):
 
     def extract_headers(self, thread_list: List[EmailThread]) -> List[EmailThread]:
 
-        for thread in tqdm(thread_list):
+        for thread in tqdm(thread_list, desc="Extracting headers"):
             for message in thread.messages:
                 if message.headers is None:
                     if message.is_main:
@@ -94,7 +94,7 @@ class CleaningPipeline(BaseModel):
     ) -> List[EmailThread]:
 
         # Need to update this loop! using multiple separators would probably overwrite the messages
-        for thread in tqdm(thread_list):
+        for thread in tqdm(thread_list, desc="Splitting multipart messages"):
             message_thread = list()
             for message in thread.messages:
                 split_message = message_split_regex.split(message.body)
@@ -121,7 +121,7 @@ class CleaningPipeline(BaseModel):
         forwarded_regex: re.Pattern,
     ):
 
-        for thread in tqdm(thread_list):
+        for thread in tqdm(thread_list, desc="Splitting forwarded messages"):
             for message in thread.messages:
                 split_message = forwarded_regex.split(message.body)
                 # all threads seems to have at most one forwarded message, will update the code to handle multiple forwarded messages if needed
@@ -137,7 +137,7 @@ class CleaningPipeline(BaseModel):
 
     def remove_noise(self, thread_list: List[EmailThread]):
         for disclaimer_pattern in noise["disclaimer"]:
-            for thread in tqdm(thread_list):
+            for thread in tqdm(thread_list, desc="Removing noise"):
                 for message in thread.messages:
                     if re.search(disclaimer_pattern, message.body):
                         message.disclaimer = re.search(
@@ -146,7 +146,7 @@ class CleaningPipeline(BaseModel):
                         message.body = re.sub(disclaimer_pattern, "", message.body)
 
         for footer_pattern in noise["footer"]:
-            for thread in tqdm(thread_list):
+            for thread in tqdm(thread_list, desc="Removing noise"):
                 for message in thread.messages:
                     if re.search(footer_pattern, message.body):
                         message.body = re.sub(footer_pattern, "", message.body)
@@ -156,7 +156,7 @@ class CleaningPipeline(BaseModel):
     def clean_bodies(self, thread_list: List[EmailThread]):
         sequences = ["=20", "=09", "=\n", "=3D"]
 
-        for thread in thread_list:
+        for thread in tqdm(thread_list, desc="Basic cleaning"):
             for message in thread.messages:
                 for sequence in sequences:
                     message.body = message.body.replace(sequence, "")
@@ -174,7 +174,7 @@ class CleaningPipeline(BaseModel):
         return thread_list
 
     def clean_subject(self, thread_list: List[EmailThread]):
-        for thread in tqdm(thread_list):
+        for thread in tqdm(thread_list, desc="Cleaning subjects"):
             for message in thread.messages:
                 if "Subject" in message.headers:
                     message.headers["Subject"] = message.headers["Subject"].strip()
