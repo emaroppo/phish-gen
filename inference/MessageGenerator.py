@@ -7,7 +7,6 @@ import outlines
 from inference.prompt_generation.generate_prompt import (
     generate_prompt,
     OutputMessage,
-    PromptOutputPair,
 )
 from functools import cached_property
 from finetuning.sft.classes.FinetunedModel import FinetunedModel
