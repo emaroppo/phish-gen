@@ -1,14 +1,16 @@
 {
     "headers": {
-        "outer": "From:\\s(?P<From>.*)\\n(?P<Headers>[\\s\\S]*?)\\nSubject:\\s(?P<Subject>.*)",
+        "outer": "(?:_+)?\\s+\\*?From:\\*?\\s(?:.*)\\n(?:[\\s\\S]*?)\\n\\*?Subject:\\*?\\s(?:.*)",
         "inner": "^([\\w\\-]*?):\\s*(.*)$"
     },
     "reply_separator": [
-        "(?:(?:-+)\\s*Original\\s*Message\\s*-+)"
+        "(?:(?:-+)\\s*Original\\s*(?:Message|Email)\\s*-+)"
     ],
     "forwarded_separator": [
         "(?:-+)\\s+Forwarded\\s+by\\s+(?P<sender>.*)\\s+on\\s+(?P<datetime>(?:\\d){1,2}\\/(?:\\d){1,2}\\/(?:\\d){2,4}\\s+(?:\\d){1,2}:(?:\\d){2}\\s+(?:(?:AM)|(?:PM)))\\s+-+",
         "-+\\s+Inline\\s+attachment\\s+follows\\s+-+",
-        "-+\\s+Forwarded\\s+Message(\\s+-+)?"
+        "-+\\s+Forwarded\\s+[Mm]essage(\\s+-+)?",
+        "Begin\\s+[Ff]orwarded\\s+Message"
+
     ]
 }

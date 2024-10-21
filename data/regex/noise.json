@@ -29,6 +29,7 @@
         "_+\\s+Do\\s+You\\s+Yahoo!\\?\\s+Great\\s+stuff\\s+seeking\\s+new\\s+owners\\s+in\\s+Yahoo!\\s+Auctions!\\s+(https?://\\S+)",
         "_+\\s+Do\\s+You\\s+Yahoo!\\?\\s+Buy\\s+the\\s+perfect\\s+holiday\\s+gifts\\s+at\\s+Yahoo!\\s+Shopping\\.\\s+(https?://\\S+)",
         "_+\\s+Do\\s+You\\s+Yahoo!\\?\\s+Check\\s+out\\s+Yahoo!\\s+Shopping\\s+and\\s+Yahoo!\\s+Auctions\\s+for\\s+all\\s+of\\s+your\\s+unique\\s+holiday\\s+gifts!\\s+Buy\\s+at\\s+(https?://\\S+)\\s+or\\s+bid\\s+at\\s+(https?://\\S+)",
-        "_+\\s+Do\\s+You\\s+Yahoo!\\?\\s+NEW\\s+from\\s+Yahoo!\\s+GeoCities\\s+quick\\s+and\\s+easy\\s+web\\s+site\\s+hosting\\s+<?(https?://\\S+)\\s+just\\s+\\$8\\.95/month\\."
+        "_+\\s+Do\\s+You\\s+Yahoo!\\?\\s+NEW\\s+from\\s+Yahoo!\\s+GeoCities\\s+quick\\s+and\\s+easy\\s+web\\s+site\\s+hosting\\s+<?(https?://\\S+)\\s+just\\s+\\$8\\.95/month\\.",
+        "\\+==+\\+\\s+This\\s+email\\s+is\\s+confidential\\s+and\\s+may\\s+be\\s+privileged\\.\\s+If\\s+you\\s+have\\s+received\\s+it\\s+in\\s+error,\\s+please\\s+notify\\s+us\\s+immediately\\s+and\\s+then\\s+delete\\s+it\\.\\s+\\s+Please\\s+do\\s+not\\s+copy\\s+it,\\s+disclose\\s+its\\s+contents\\s+or\\s+use\\s+it\\s+for\\s+any\\s+purpose\\.\\s+\\+==+\\+"
     ]
 }

@@ -1,0 +1,7 @@
+{
+    "headers": {
+        "outer": "(?:_+)?\\s+\\*?From:\\*?\\s(?P<From>.*)\\n(?P<Headers>[\\s\\S]*?)\\n\\*?Subject:\\*?\\s(?P<Subject>.*)",
+        "inner": "^([\\w\\-]*?):\\s*(.*)$"
+    },
+    "alt_separator":[]
+}
