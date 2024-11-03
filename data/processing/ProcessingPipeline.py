@@ -45,7 +45,7 @@ class ProcessingPipeline(BaseModel):
     def check_html(thread_list: List[EmailThread]) -> List[EmailThread]:
         for thread in thread_list:
             for message in thread.messages:
-                if re.search(r"<html>", message.body):
+                if re.search(r"<(?:html|body)>", message.body, re.IGNORECASE):
                     message.is_html = True
         return thread_list
 
@@ -466,7 +466,7 @@ class ProcessingPipeline(BaseModel):
         thread_list = self.remove_overlapping_labels(
             thread_list, detection_method=["manual"]
         )
-        for thread in tqdm(thread_list):
+        for thread in tqdm(thread_list, desc=f"Saving threads to {self.db}"):
             thread.save()
 
         return True
@@ -507,6 +507,15 @@ class ProcessingPipeline(BaseModel):
                     ]
                 )
             ]
+
+            # remove messages with no subject or where subject is an empty string
+            messages = [
+                message
+                for message in tqdm(messages)
+                if "Subject" in message.headers and message.headers["Subject"]
+            ]
+
+            print(len(messages))
 
             # insert entity placeholders
             messages = self.insert_entity_placeholders(messages)
