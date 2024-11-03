@@ -55,7 +55,7 @@ class FinetuningDataset(BaseModel):
         return cls.deserialize(data)
 
     @classmethod
-    def from_file_list(cls, file_list):
+    def from_raw_file_list(cls, file_list):
         dataset_timestamp = int(time.time())
         dataset = cls(timestamp=dataset_timestamp)
 
