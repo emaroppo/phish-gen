@@ -1,8 +1,11 @@
 from pydantic import BaseModel
-from finetuning.sft.classes.FinetunedModel import FinetunedModel
+from finetuning.sft.classes.finetuned_models.FinetunedModel import (
+    FinetunedModel,
+    FinetuningArguments,
+)
 from finetuning.sft.classes.FinetuningDataset import FinetuningDataset
 from bson import ObjectId
-from typing import List, Dict, Union, Literal
+from typing import List, Dict, Union, Literal, Type
 from inference.MessageGenerator import MessageGenerator
 from data.processing.labellers.SentimentMessageLabeller import (
     SentimentMessageLabeller,
@@ -31,14 +34,9 @@ class Experiment(BaseModel):
     def run_experiment(
         cls,
         dataset_timestamp: int,
-        base_model_id: str,
-        rank: int = 16,
+        base_model_class: Type[FinetunedModel],
+        fine_tuning_arguments: FinetuningArguments,
         epochs: int = 2,
-        quantization: Union[Literal["4bit", "8bit"], None] = "4bit",
-        batch_size: int = 4,
-        gradient_accumulation_steps: int = 4,
-        learning_rate: float = 2e-4,
-        warmup_steps: int = 0,
         custom_tokens: Union[List[str], Dict[str, List[str]]] = [
             "<URL>",
             "<ATTACHMENT>",
@@ -51,18 +49,11 @@ class Experiment(BaseModel):
     ):
         dataset = FinetuningDataset.from_db(dataset_timestamp)
 
-        # Load dataset
-        finetuned_model = FinetunedModel.train_model(
+        finetuned_model = base_model_class.train_model(
             dataset=dataset,
-            base_model_id=base_model_id,
-            quantization=quantization,
-            rank=rank,
+            fine_tuning_arguments=fine_tuning_arguments,
             epochs=epochs,
-            batch_size=batch_size,
-            gradient_accumulation_steps=gradient_accumulation_steps,
-            learning_rate=learning_rate,
-            custom_tokens=custom_tokens,
-            warmup_steps=warmup_steps,
+            save_steps=500,
         )
 
         experiment = cls(

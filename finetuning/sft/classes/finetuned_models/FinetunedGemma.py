@@ -1,8 +1,11 @@
-from pydantic import BaseModel, computed_field
+from pydantic import computed_field, Field
 from functools import cached_property
 from typing import List, Dict, Optional, Union, Literal
 from finetuning.sft.classes.FinetunedCheckpoint import FinetunedCheckpoint
-from data.QueryManager import query_manager
+from finetuning.sft.classes.finetuned_models.FinetunedModel import (
+    FinetunedModel,
+    FinetuningArguments,
+)
 from datetime import datetime
 from transformers import (
     AutoModelForCausalLM,
@@ -17,6 +20,11 @@ from transformers.trainer_callback import TrainerCallback
 import torch
 import json
 from finetuning.sft.classes.FinetuningDataset import FinetuningDataset
+
+
+class GemmaFineTuningArguments(FinetuningArguments):
+    custom_tokens: Optional[Union[List[str], Dict[str, List[str]]]] = None
+    related_tokens_dict: Optional[Dict[str, List[str]]] = None
 
 
 class LossLoggerCallback(TrainerCallback):
@@ -53,20 +61,9 @@ class CastOutputToFloat(torch.nn.Sequential):
         return super().forward(x).to(torch.float32)
 
 
-class FinetunedModel(BaseModel):
-    timestamp: int
-    dataset_timestamp: int
-    base_model_id: str
-    rank: int
-    quantization: str
-    batch_size: int
-    gradient_accumulation_steps: int
-    learning_rate: float
-    warmup_steps: int = 0
-    checkpoints: Optional[List[FinetunedCheckpoint]] = list()
-    custom_tokens: Optional[Union[List[str], Dict[str, List[str]]]] = None
-    related_tokens_dict: Optional[Dict[str, List[str]]] = None
-    loss_history: Optional[List] = list()
+class FinetunedGemma(FinetunedModel):
+    base_model_id: str = Field("google/gemma-2b", const=True)
+    training_arguments: GemmaFineTuningArguments
 
     @computed_field
     @cached_property
@@ -85,48 +82,6 @@ class FinetunedModel(BaseModel):
             )
         else:
             return None
-
-    @classmethod
-    def deserialize(cls, data, include_messages=False):
-        return cls(
-            timestamp=data["timestamp"],
-            dataset_timestamp=data["dataset_timestamp"],
-            base_model_id=data["base_model_id"],
-            rank=data["rank"],
-            quantization=data["quantization"],
-            custom_tokens=data["custom_tokens"],
-            batch_size=data["batch_size"],
-            gradient_accumulation_steps=data["gradient_accumulation_steps"],
-            learning_rate=data["learning_rate"],
-            checkpoints=[
-                FinetunedCheckpoint.deserialize(
-                    data=checkpoint, include_messages=include_messages
-                )
-                for checkpoint in data["checkpoints"]
-            ],
-        )
-
-    @classmethod
-    def from_db(cls, base_model_id, timestamp, include_messages=False):
-        # Load model from database
-        finetuned_model = query_manager.connection["models"]["summary"].find_one(
-            {"base_model_id": base_model_id, "timestamp": timestamp}
-        )
-        return cls.deserialize(finetuned_model, include_messages)
-
-    @classmethod
-    def get_sentence_embeddings(cls, model, tokenizer, sentence: str):
-        inputs = tokenizer(
-            sentence,
-            return_tensors="pt",
-            padding="max_length",
-            max_length=512,
-            truncation=True,
-        )
-        with torch.no_grad():
-            outputs = model(**inputs, output_hidden_states=True)
-            last_hidden_state = outputs.hidden_states[-1]
-        return last_hidden_state.mean(dim=1)
 
     @classmethod
     def initialize_new_embeddings(
@@ -189,10 +144,17 @@ class FinetunedModel(BaseModel):
         model.resize_token_embeddings(len(tokenizer))
         embedding_layer = model.get_input_embeddings()
 
+        new_token_ids = []
+
         # Set the embeddings for the new tokens
         for token, embedding in zip(new_tokens, new_embeddings):
+            print("hey")
             token_id = tokenizer.convert_tokens_to_ids(token)
             embedding_layer.weight.data[token_id] = embedding.to(device)
+            embedding_layer.weight.data[token_id]
+            new_token_ids.append(token_id)
+
+        return new_token_ids
 
     @classmethod
     def train_model(
@@ -211,7 +173,7 @@ class FinetunedModel(BaseModel):
     ):
         # Create a new finetuned model entry in the database
         timestamp = int(datetime.now().timestamp())
-        finetuned_model = FinetunedModel(
+        finetuned_model = cls(
             timestamp=timestamp,
             dataset_timestamp=dataset.timestamp,
             base_model_id=base_model_id,
@@ -237,34 +199,50 @@ class FinetunedModel(BaseModel):
                 base_model_id, device_map="auto"
             )
 
+        # Define device based on model's parameters
+        device = next(model.parameters()).device
+
         # Load the tokenizer
         tokenizer = AutoTokenizer.from_pretrained(base_model_id)
         tokenizer.add_eos_token = True
 
-        if type(custom_tokens) == dict:
+        if isinstance(custom_tokens, dict):
             custom_tokens_dict = custom_tokens
             custom_tokens = [token for token in custom_tokens_dict.keys()]
 
-            FinetunedModel.initialize_new_embeddings(
+            new_token_ids = cls.initialize_new_embeddings(
                 model,
                 tokenizer,
                 custom_tokens=custom_tokens,
                 related_tokens_dict=custom_tokens_dict,
             )
-        elif type(custom_tokens) == list:
+        elif isinstance(custom_tokens, list):
             tokenizer.add_tokens(custom_tokens)
             model.resize_token_embeddings(len(tokenizer))
+            new_token_ids = [
+                tokenizer.convert_tokens_to_ids(token) for token in custom_tokens
+            ]
+            print(new_token_ids)
 
         # Load dataset
         dataset = dataset.load_finetuning_dataset(tokenizer=tokenizer)
 
-        for param in model.parameters():
-            param.requires_grad = False
+        import torch.nn as nn
+
+        # Freeze model parameters except for the embeddings of new tokens
+        model.enable_input_require_grads()
+        for name, param in model.named_parameters():
+            if "embedding" not in name:
+                param.requires_grad = False
+            elif int(name.split(".")[2]) not in new_token_ids:
+                param.requires_grad = False
+            else:
+                param.requires_grad = True
+                print(name)
             if param.ndim == 1:
-                param.data.to(torch.float32)
+                param.data = param.data.to(torch.float32)
 
         model.gradient_checkpointing_enable()
-        model.enable_input_require_grads()
 
         model.lm_head = CastOutputToFloat(model.lm_head)
 
@@ -405,38 +383,3 @@ class FinetunedModel(BaseModel):
         # Save the finetuned model state
         self.save()
         print("Training resumed and model saved successfully")
-
-    def serialise(self):
-        return {
-            "timestamp": self.timestamp,
-            "dataset_timestamp": self.dataset_timestamp,
-            "base_model_id": self.base_model_id,
-            "rank": self.rank,
-            "quantization": self.quantization,
-            "batch_size": self.batch_size,
-            "gradient_accumulation_steps": self.gradient_accumulation_steps,
-            "learning_rate": self.learning_rate,
-            "checkpoints": [checkpoint.serialise() for checkpoint in self.checkpoints],
-            "custom_tokens": self.custom_tokens,
-            "loss_history": self.loss_history,
-        }
-
-    def add_checkpoint(self, timestamp, base_model_id, steps):
-        checkpoint = FinetunedCheckpoint(
-            timestamp=timestamp, base_model_id=base_model_id, steps=steps
-        )
-        self.checkpoints.append(checkpoint)
-
-    def get_checkpoint(self, steps):
-        for checkpoint in self.checkpoints:
-            if checkpoint.steps == steps:
-                return checkpoint
-        return None
-
-    def save(self):
-        query_manager.connection["models"]["summary"].update_one(
-            {"timestamp": self.timestamp, "base_model_id": self.base_model_id},
-            {"$set": self.serialise()},
-            upsert=True,
-        )
-        return True
