@@ -6,11 +6,11 @@ from peft import PeftModel
 
 
 model_id = "google/gemma-2b"
-adapter_path = "offline_finetuning/models/gemma-2b/1724075462/checkpoint-2000"
+adapter_path = "finetuning/sft/models/gemma-2b/1727175863/checkpoint-1500"
 train_dataset = ""
 
 tokenizer = AutoTokenizer.from_pretrained(model_id)
-#TODO: Add custom tokens
+# TODO: Add custom tokens
 # Load the base model.
 bnb_config = BitsAndBytesConfig(
     load_in_4bit=True,

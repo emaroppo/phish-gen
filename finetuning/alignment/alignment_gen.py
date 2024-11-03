@@ -9,10 +9,10 @@ db = client["dpo_dataset"]
 
 
 finetuned_model = FinetunedModel.from_db(
-    base_model_id="google/gemma-2b", timestamp=1723627438
+    base_model_id="google/gemma-2b", timestamp=1727175863
 )
 
-message_generator = MessageGenerator(finetuned_model=finetuned_model, checkpoint=2500)
+message_generator = MessageGenerator(finetuned_model=finetuned_model, checkpoint=1500)
 
 st.title("DPO Generator")
 st.write(
@@ -40,16 +40,11 @@ if button:
     message = message_generator.generate_message(**prompt)
 
     st.write("Generated Message:")
+
     col1, col2 = st.columns(2)
-    # press button underneath better message to save the message pair in the dataset with appropriate labels
     with col1:
         st.write("Original Message")
-        st.write(message1)
-        button_1 = st.button("Select Original")
-        if button_1:
-            db["dpo_dataset"].insert_one(
-                {"prompt": prompt, "chosen": message1, "rejected": message2}
-            )
+        st.write(message)
 
     with col2:
         st.write("Revised Message")

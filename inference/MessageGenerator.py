@@ -9,7 +9,7 @@ from inference.prompt_generation.generate_prompt import (
     OutputMessage,
 )
 from functools import cached_property
-from finetuning.sft.classes.FinetunedModel import FinetunedModel
+from finetuning.sft.classes.finetuned_models.FinetunedModel import FinetunedModel
 
 
 class MessageGenerator(BaseModel):
@@ -117,7 +117,7 @@ class MessageGenerator(BaseModel):
                 top_p=0.95,
                 attention_mask=attention_mask,
                 do_sample=True,
-                temperature=0.5,
+                temperature=1.0,
             )
 
             output_text = self.tokenizer.decode(output_ids[0], skip_special_tokens=True)

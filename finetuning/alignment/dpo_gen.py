@@ -9,10 +9,10 @@ db = client["dpo_dataset"]
 
 
 finetuned_model = FinetunedModel.from_db(
-    base_model_id="google/gemma-2b", timestamp=1723627438
+    base_model_id="google/gemma-2b", timestamp=1727175863
 )
 
-message_generator = MessageGenerator(finetuned_model=finetuned_model, checkpoint=2500)
+message_generator = MessageGenerator(finetuned_model=finetuned_model, checkpoint=1500)
 
 st.title("DPO Generator")
 st.write(
