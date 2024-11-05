@@ -1,6 +1,7 @@
 from finetuning.sft.classes.finetuned_models.FinetunedModel import (
     FinetunedModel,
     FinetuningArguments,
+    query_manager,
 )
 from typing import Literal
 from finetuning.sft.classes.FinetuningDataset import FinetuningDataset
@@ -13,6 +14,17 @@ from datetime import datetime
 
 class FinetunedLLama31(FinetunedModel):
     base_model_id: Literal["unsloth/Meta-Llama-3.1-8B-bnb-4bit"]
+
+    @classmethod
+    def from_db(cls, timestamp, include_messages=False):
+        # Load model from database
+        finetuned_model = query_manager.connection["models"]["summary"].find_one(
+            {
+                "base_model_id": "unsloth/Meta-Llama-3.1-8B-bnb-4bit",
+                "timestamp": timestamp,
+            }
+        )
+        return cls.deserialize(finetuned_model, include_messages)
 
     @classmethod
     def train_model(
@@ -104,7 +116,7 @@ class FinetunedLLama31(FinetunedModel):
                 optim="adamw_8bit",
                 weight_decay=fine_tuning_arguments.weight_decay,
                 warmup_steps=fine_tuning_arguments.warmup_steps,
-                output_dir=f"fine_tuning/sft/models/{base_model_id.split('/')[-1]}/{timestamp}",
+                output_dir=f"finetuning/sft/models/{base_model_id.split('/')[-1]}/{timestamp}",
                 save_steps=save_steps,
             ),
         )
@@ -114,3 +126,22 @@ class FinetunedLLama31(FinetunedModel):
 
     def resume_training(self, epochs):
         raise NotImplementedError
+
+    def load_model(self, checkpoint):
+        model_folder = f"finetuning/sft/models/{self.base_model_id.split('/')[-1]}/{self.timestamp}"
+        model, tokenizer = FastLanguageModel.from_pretrained(
+            model_name=f"{model_folder}/checkpoint-{checkpoint}",
+            max_seq_length=self.fine_tuning_arguments.max_seq_length,
+            load_in_4bit=True,
+            dtype=None,
+        )
+
+        tokenizer.add_special_tokens({"pad_token": "<|reserved_special_token_0|>"})
+        model.config.pad_token_id = tokenizer.pad_token_id  # updating model config
+        tokenizer.padding_side = (
+            "right"  # padding to right (otherwise SFTTrainer shows warning)
+        )
+
+        model = FastLanguageModel.for_inference(model)
+
+        return model, tokenizer
