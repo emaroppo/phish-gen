@@ -1,5 +1,5 @@
 from pydantic import BaseModel, computed_field
-from typing import Literal, Optional, Union, Any
+from typing import Literal, Optional, Union, Any, Tuple
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from peft import PeftModel
 import torch
@@ -15,76 +15,24 @@ from finetuning.sft.classes.finetuned_models.FinetunedModel import FinetunedMode
 class MessageGenerator(BaseModel):
     finetuned_model: FinetunedModel
     checkpoint: Optional[int] = None
+    _model_and_tokenizer: Tuple[Any, Any] = None
+
+    def _load_model_and_tokenizer(self) -> Tuple[Any, Any]:
+        if self._model_and_tokenizer is None:
+            model, tokenizer = self.finetuned_model.load_model(self.checkpoint)
+            self._model_and_tokenizer = (model, tokenizer)
+        return self._model_and_tokenizer
 
     @computed_field
     @cached_property
     def tokenizer(self) -> Any:
-        tokenizer = AutoTokenizer.from_pretrained(self.finetuned_model.base_model_id)
-        tokenizer.pad_token = tokenizer.eos_token
-        tokenizer.add_tokens(
-            [
-                "<URL>",
-                "<ATTACHMENT>",
-                "<PHONE>",
-                "<DATE>",
-                "<EMAIL>",
-                "<PER>",
-                "<ORG>",
-            ],
-        )
-
+        _, tokenizer = self._load_model_and_tokenizer()
         return tokenizer
 
     @computed_field
     @cached_property
     def gen_model(self) -> Any:
-
-        # Assuming load_model is a function that loads a model and tokenizer based on the given parameters
-        if self.finetuned_model.quantization is None:
-            model = AutoModelForCausalLM.from_pretrained(
-                self.finetuned_model.base_model_id,
-                device_map="auto",
-            )
-
-        else:
-            if self.finetuned_model.quantization == "4bit":
-                bnb_config = BitsAndBytesConfig(
-                    load_in_4bit=True,
-                    bnb_4bit_quant_type="nf4",
-                    bnb_4bit_compute_dtype=torch.float16,
-                    selective_precision={"critical_layers": "8bit"},
-                )
-
-                model = AutoModelForCausalLM.from_pretrained(
-                    self.finetuned_model.base_model_id, quantization_config=bnb_config
-                )
-
-            elif self.finetuned_model.quantization == "8bit":
-                bnb_config = BitsAndBytesConfig(
-                    load_in_8bit=True,
-                    bnb_8bit_quant_type="nf8",
-                    bnb_8bit_compute_dtype=torch.float16,
-                    selective_precision={"critical_layers": "8bit"},
-                )
-
-                model = AutoModelForCausalLM.from_pretrained(
-                    self.finetuned_model.base_model_id, quantization_config=bnb_config
-                )
-
-            else:
-                raise ValueError(
-                    f"Quantization type {self.finetuned_model.quantization} is not supported"
-                )
-
-        model.resize_token_embeddings(len(self.tokenizer))
-
-        if self.checkpoint:
-
-            model = PeftModel.from_pretrained(
-                model,
-                f"finetuning/sft/models/{self.finetuned_model.base_model_id.split('/')[-1]}/{self.finetuned_model.timestamp}/checkpoint-{self.checkpoint}",
-            )
-
+        model, _ = self._load_model_and_tokenizer()
         return model
 
     def generate_message(
@@ -111,7 +59,7 @@ class MessageGenerator(BaseModel):
 
             output_ids = self.gen_model.generate(
                 input_ids,
-                max_length=192,
+                max_length=512,
                 num_return_sequences=1,
                 top_k=50,
                 top_p=0.95,
@@ -121,6 +69,7 @@ class MessageGenerator(BaseModel):
             )
 
             output_text = self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
+            print(output_text)
             # get finetuned_model_checkpoint
             checkpoint = self.finetuned_model.get_checkpoint(self.checkpoint)
             try:
