@@ -55,9 +55,17 @@ class FinetuningDataset(BaseModel):
         return cls.deserialize(data)
 
     @classmethod
+    def from_processed_entries(cls, timestamp: int):
+        messages = query_manager.connection["datasets"][f"samples_{timestamp}"].find()
+        dataset = cls(timestamp=timestamp)
+        for message in messages:
+            dataset.add_message(DataSample.deserialize(message))
+
+        query_manager.connection["datasets"]["summary"].insert_one(dataset.serialise())
+
+    @classmethod
     def from_raw_file_list(cls, file_list):
         dataset_timestamp = int(time.time())
-        dataset = cls(timestamp=dataset_timestamp)
 
         cleaning_pipeline = CleaningPipeline()
         processing_pipeline = ProcessingPipeline()
@@ -71,17 +79,7 @@ class FinetuningDataset(BaseModel):
         )
 
         # retrieve messages from the database
-        messages = query_manager.connection["datasets"][
-            f"samples_{dataset_timestamp}"
-        ].find()
-
-        messages = [DataSample.deserialize(message) for message in messages]
-
-        dataset = cls(timestamp=dataset_timestamp)
-        for message in messages:
-            dataset.add_message(message)
-
-        query_manager.connection["datasets"]["summary"].insert_one(dataset.serialise())
+        dataset = cls.from_processed_entries(dataset_timestamp)
 
         return dataset
 
