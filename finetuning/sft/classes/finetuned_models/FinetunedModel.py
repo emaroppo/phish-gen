@@ -17,14 +17,8 @@ class FinetuningArguments(BaseModel):
 
     @classmethod
     def deserialize(cls, data):
-        init_arguments = {
-            "rank": data["rank"],
-            "quantization": data["quantization"],
-            "batch_size": data["batch_size"],
-            "gradient_accumulation_steps": data["gradient_accumulation_steps"],
-            "learning_rate": data["learning_rate"],
-            "warmup_steps": data["warmup_steps"],
-        }
+
+        init_arguments = {i: data[i] for i in data if i in cls.model_fields}
 
         return cls(**init_arguments)
 
@@ -50,22 +44,11 @@ class FinetunedModel(BaseModel):
                 for checkpoint in data["checkpoints"]
             ],
         }
-        if "training_arguments" in data:
-            model_arguments["training_arguments"] = FinetuningArguments.deserialize(
-                data
-            )
+
+        model_arguments["fine_tuning_arguments"] = FinetuningArguments.deserialize(data)
 
         return cls(
-            timestamp=data["timestamp"],
-            dataset_timestamp=data["dataset_timestamp"],
-            base_model_id=data["base_model_id"],
-            training_arguments=FinetuningArguments(**data),
-            checkpoints=[
-                FinetunedCheckpoint.deserialize(
-                    data=checkpoint, include_messages=include_messages
-                )
-                for checkpoint in data["checkpoints"]
-            ],
+            **model_arguments,
         )
 
     @classmethod
@@ -115,6 +98,10 @@ class FinetunedModel(BaseModel):
             "learning_rate": self.fine_tuning_arguments.learning_rate,
             "checkpoints": [checkpoint.serialise() for checkpoint in self.checkpoints],
             "loss_history": self.loss_history,
+            "warmup_steps": self.fine_tuning_arguments.warmup_steps,
+            "max_seq_length": self.fine_tuning_arguments.max_seq_length,
+            "weight_decay": self.fine_tuning_arguments.weight_decay,
+            "lr_scheduler": self.fine_tuning_arguments.lr_scheduler,
         }
 
     def save(self):
