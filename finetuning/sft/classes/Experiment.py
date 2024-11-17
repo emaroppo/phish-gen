@@ -12,6 +12,11 @@ from data.processing.labellers.SentimentMessageLabeller import (
 )
 from tqdm import tqdm
 from data.QueryManager import query_manager
+import json
+
+with open("finetuning/sft/classes/subject.json", "r") as f:
+    sample_subjects = json.load(f)
+    sample_subjects = sample_subjects["subjects"]
 
 
 class Experiment(BaseModel):
@@ -47,7 +52,7 @@ class Experiment(BaseModel):
             "<ORG>",
         ],
     ):
-        dataset = FinetuningDataset.from_db(dataset_timestamp)
+        dataset = FinetuningDataset.from_db(dataset_timestamp, include_messages=False)
 
         finetuned_model = base_model_class.train_model(
             dataset=dataset,
@@ -68,11 +73,7 @@ class Experiment(BaseModel):
     @classmethod
     def generate_evaluation_prompts(
         cls,
-        subjects: List[str] = [
-            "Payroll Update",
-            "Christmas Office Party",
-            "Outstanding Invoice",
-        ],
+        subjects: List[str] = sample_subjects,
         sentiments: List[str] = [
             "sadness",
             "joy",
