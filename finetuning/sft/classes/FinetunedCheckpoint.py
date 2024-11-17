@@ -111,11 +111,12 @@ class FinetunedCheckpoint(BaseModel):
                 "output_urls": message.output["urls"],
                 "prompt_attachments": message.prompt["attachments"],
                 "output_attachments": message.output["attachments"],
-                "prompt_sentiment": message.prompt["sentiment"],
-                "output_sentiment": message.output["sentiment"],
+                "prompt_sentiment": message.prompt["sentiment"][0],
+                "output_sentiment": message.output["sentiment"][0],
             }
             for message in self.messages
         ]
+
         message_results_df = pd.DataFrame(message_results)
         self.sentiment_metrics = {
             "accuracy": (
