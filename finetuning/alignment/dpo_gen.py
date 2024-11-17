@@ -1,7 +1,7 @@
 import streamlit as st
 
 from inference.MessageGenerator import MessageGenerator
-from finetuning.sft.classes.FinetunedModel import FinetunedModel
+from finetuning.sft.classes.finetuned_models.FinetunedModel import FinetunedModel
 from pymongo import MongoClient
 
 client = MongoClient("mongodb://localhost:27017/")
