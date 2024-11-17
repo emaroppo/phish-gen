@@ -145,3 +145,18 @@ class FinetunedLLama31(FinetunedModel):
         model = FastLanguageModel.for_inference(model)
 
         return model, tokenizer
+
+    def export_gguf(self, checkpoint, quantization_method="fp16"):
+        model_folder = f"finetuning/sft/models/{self.base_model_id.split('/')[-1]}/{self.timestamp}"
+        model, tokenizer = FastLanguageModel.from_pretrained(
+            model_name=f"{model_folder}/checkpoint-{checkpoint}",
+            max_seq_length=self.fine_tuning_arguments.max_seq_length,
+            load_in_4bit=True,
+            dtype=None,
+        )
+
+        tokenizer.add_special_tokens({"pad_token": "<|reserved_special_token_0|>"})
+        model.config.pad_token_id = tokenizer.pad_token_id
+        tokenizer.padding_side = "right"
+
+        model.save_pretrained_gguf("gguf", tokenizer, quantization_method)
