@@ -16,7 +16,9 @@ class TitleList(BaseModel):
 
 
 class TitleGenerator(BaseModel):
-    sys_prompt: str
+    sys_prompt: str = (
+        "You are a helpful assistant tasked with generating subject lines for various emails."
+    )
     dos: List[str]
     donts: List[str]
 
@@ -63,8 +65,3 @@ title_generator = TitleGenerator(
         "Do not use emojis.",
     ],
 )
-
-context = "I need to email out invites for the upcoming university department christmas party."
-
-titles = title_generator.generate_titles(context)
-print(titles)
