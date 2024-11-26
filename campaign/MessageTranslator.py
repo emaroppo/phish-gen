@@ -38,7 +38,7 @@ class MessageTranslator(BaseModel):
 
         return prompt
 
-    def translate(self, original_title, original_text) -> List[str]:
+    def translate(self, original_title, original_text) -> TranslatorResponse:
         messages = [
             {
                 "role": "system",
